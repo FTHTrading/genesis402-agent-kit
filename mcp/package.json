@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "description": "MCP server for the Genesis402 x402 rail (twin.unykorn.org): risk, prove, genesis-sim, wallet-ops, rwa-screen, llm. Pays per call in USDC on Base via x402.",
   "type": "module",
-  "bin": { "genesis402-mcp": "index.mjs" },
+  "bin": {
+    "genesis402-mcp": "index.mjs"
+  },
   "main": "index.mjs",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",
@@ -13,5 +17,26 @@
     "@x402/fetch": "^2.26.0",
     "viem": "^2.40.0",
     "zod": "^3.25.0"
-  }
+  },
+  "files": [
+    "index.mjs",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FTHTrading/genesis402-agent-kit.git",
+    "directory": "mcp"
+  },
+  "homepage": "https://github.com/FTHTrading/genesis402-agent-kit#readme",
+  "keywords": [
+    "mcp",
+    "x402",
+    "agents",
+    "payments",
+    "base",
+    "usdc",
+    "xrpl",
+    "risk",
+    "proof"
+  ]
 }
