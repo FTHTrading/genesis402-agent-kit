@@ -34,17 +34,19 @@ async def main() -> None:
         # XRPL is pay-first: submit the payment, then present the validated tx hash.
         from xrpl.asyncio.clients import AsyncWebsocketClient
         from xrpl.asyncio.transaction import submit_and_wait
-        from xrpl.models.transactions import Payment
+        from xrpl.models.transactions import Memo, Payment
         from xrpl.utils import xrp_to_drops
         from xrpl.wallet import Wallet
 
         wallet = Wallet.from_seed(os.environ["XRPL_SEED"])
         async with AsyncWebsocketClient("wss://xrplcluster.com") as client:
-            tx = await submit_and_wait(Payment(account=wallet.address, destination=xrp["payTo"], amount=xrp_to_drops(float(xrp["price"]))), client, wallet)
+            # memo = sha256(nonce) binds the payment to this challenge
+            memo = Memo(memo_data=xrp["extra"]["memo_sha256"].upper())
+            tx = await submit_and_wait(Payment(account=wallet.address, destination=xrp["payTo"], amount=xrp["amount"], memos=[memo]), client, wallet)
         tx_hash = tx.result["hash"]
         print("XRPL payment validated:", tx_hash)
         async with httpx.AsyncClient(timeout=60) as http:
-            res = await http.post(URL, json=BODY, headers={"X-PAYMENT": json.dumps({"network": "xrpl:mainnet", "txHash": tx_hash})})
+            res = await http.post(URL, json=BODY, headers={"X-PAYMENT": json.dumps({"network": "xrpl:mainnet", "txHash": tx_hash, "nonce": xrp["extra"]["nonce"]})})
         print(res.status_code, res.text)
         return
 

@@ -29,11 +29,12 @@ if (process.env.RAIL === "xrpl") {
   const client = new xrpl.Client("wss://xrplcluster.com");
   await client.connect();
   const wallet = xrpl.Wallet.fromSeed(process.env.XRPL_SEED);
-  const tx = await client.submitAndWait({ TransactionType: "Payment", Account: wallet.address, Destination: xrp.payTo, Amount: xrpl.xrpToDrops(xrp.price) }, { wallet });
+  // Bind the payment to THIS challenge: memo = sha256(nonce). Only we know the nonce, so nobody watching the ledger can redeem it.
+  const tx = await client.submitAndWait({ TransactionType: "Payment", Account: wallet.address, Destination: xrp.payTo, Amount: xrp.amount, Memos: [{ Memo: { MemoData: xrp.extra.memo_sha256.toUpperCase() } }] }, { wallet });
   await client.disconnect();
   const txHash = tx.result.hash;
   console.log("XRPL payment validated:", txHash);
-  res = await fetch(url, { ...init, headers: { ...init.headers, "X-PAYMENT": JSON.stringify({ network: "xrpl:mainnet", txHash }) } });
+  res = await fetch(url, { ...init, headers: { ...init.headers, "X-PAYMENT": JSON.stringify({ network: "xrpl:mainnet", txHash, nonce: xrp.extra.nonce }) } });
 } else {
   // 2b. Base: sign an EIP-3009 transferWithAuthorization; the standard x402 client builds PAYMENT-SIGNATURE and retries.
   if (BigInt(base.amount) > MAX_ATOMIC) throw new Error(`price ${base.amount} above cap ${MAX_ATOMIC}`);
