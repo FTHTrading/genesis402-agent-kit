@@ -1,0 +1,47 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.FTHTrading/genesis402-mcp",
+  "title": "Genesis402 (x402 pay-per-call)",
+  "description": "360 x402 pay-per-call APIs: DeFi yields, SEC financials, wallet/token due diligence, web intel, AI tools, multi-chain reads",
+  "repository": {
+    "url": "https://github.com/FTHTrading/genesis402-agent-kit",
+    "source": "github",
+    "subfolder": "mcp"
+  },
+  "websiteUrl": "https://twin.unykorn.org/catalog",
+  "version": "0.3.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "genesis402-mcp",
+      "version": "0.3.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GENESIS402_LIVE",
+          "description": "Set to 1 to allow paying. Unset = quote-only, nothing is signed.",
+          "isRequired": false
+        },
+        {
+          "name": "GENESIS402_PAYER_KEY",
+          "description": "Private key of a Base wallet holding USDC, used only when GENESIS402_LIVE=1.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "GENESIS402_MAX_USD",
+          "description": "Refuse any quote above this many USD (default 0.25).",
+          "isRequired": false
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://twin.unykorn.org/mcp"
+    }
+  ]
+}
