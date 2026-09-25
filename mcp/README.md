@@ -1,22 +1,37 @@
-﻿# genesis402-mcp
+# genesis402-mcp
 
-MCP server for the [Genesis402](https://twin.unykorn.org) x402 rail â€” **179 pay-per-call
-endpoints** across Base, Ethereum, Solana, Stellar, XRPL and Bitcoin, paid in USDC on Base
-via the x402 v2 protocol.
+Genesis402: pay-per-call APIs for AI agents over x402.
 
-No account. No API key. No signup. Your agent reads a 402, pays a fraction of a cent, and
-gets JSON back.
+This is the MCP server for the [Genesis402](https://twin.unykorn.org) rail: **360 pay-per-call
+endpoints** covering DeFi and market data, SEC financials, wallet and token risk signals from
+public data, web and domain lookups, AI text tools, and multi-chain reads across EVM chains,
+Solana, Bitcoin, Stellar and the XRP Ledger.
+
+Pay only for the call you make: no account, no subscription, no API key.
+Prices from $0.001 per call, shown before you pay. This package pays in USDC on Base via x402 v2.
 
 ## Quote-only by default
 
-**Nothing is ever signed until you explicitly opt in.** Out of the box every paid tool
-returns the price quote and stops. To enable payment you must set *both* `GENESIS402_LIVE=1`
-and `GENESIS402_PAYER_KEY`. Even then, any quote above `GENESIS402_MAX_USD` (default `$0.25`)
-is refused rather than paid.
+Quote-only by default: nothing is signed or paid until you turn paying on and set a price cap.
 
-The server sets the price. This client never does â€” it only decides whether to accept it.
+Out of the box every paid tool returns the price quote and stops. To enable payment you must
+set *both* `GENESIS402_LIVE=1` and `GENESIS402_PAYER_KEY`. Even then, any quote above
+`GENESIS402_MAX_USD` (default `$0.25`) is refused rather than paid.
 
-## Install
+The rail sets the price. This client never does; it only decides whether to accept it.
+
+## Hosted endpoint (no install)
+
+Connect any MCP client that supports streamable HTTP to **https://twin.unykorn.org/mcp**. It
+exposes the same 14 tools over all 360 endpoints.
+
+- Hosted MCP endpoint at https://twin.unykorn.org/mcp: it holds no keys. A paid tool returns the
+  exact x402 quote.
+- To pay, sign an x402 v2 payment for that quote with your own wallet (for example `@x402/fetch`
+  or a CDP/AgentKit wallet) and call the tool again with `payment_signature`.
+- Health check: https://twin.unykorn.org/mcp/health
+
+## Install (local, stdio)
 
 ```jsonc
 // Claude Desktop: claude_desktop_config.json
@@ -31,10 +46,9 @@ The server sets the price. This client never does â€” it only decides wheth
 }
 ```
 
-That is the safe configuration: your agent can browse the catalog and see prices, and cannot
-spend anything.
+That configuration can browse the catalog and see prices, and cannot spend anything.
 
-To let it actually pay:
+To let it pay:
 
 ```jsonc
 {
@@ -52,61 +66,50 @@ To let it actually pay:
 }
 ```
 
-Use a dedicated key holding a few dollars of USDC on Base. Never your main wallet.
+Use a dedicated key holding a few dollars of USDC on Base, never your main wallet.
 
-## Tools
+## Tools (14)
+
+Each paid tool's description carries its live price, read from the rail's
+`/.well-known/x402` manifest at startup, so a price change on the rail never leaves this
+client advertising a stale number.
 
 | Tool | Cost | What it does |
 |---|---|---|
-| `genesis402_catalog` | free | Every endpoint, price and parameter, from the live manifest. Takes an optional `filter`. |
-| `genesis402_receipt` | free | Look up a paid-call receipt by id. |
-| `genesis402_call` | varies | **Call any of the 179 endpoints by name.** Start here. |
-| `genesis402_multi_chain_scan` | $0.008 | One call across 10 EVM chains. The alternative is ten RPC providers and the fan-out code. |
-| `genesis402_screen_sanctions` | $0.008 | OFAC SDN + community blocklist screen. |
-| `genesis402_token_concentration` | $0.008 | Holder count and top-holder concentration â€” the rug/whale pre-trade check. |
-| `genesis402_contract_verified` | $0.006 | Source-verification and proxy status. |
-| `genesis402_address_activity` | $0.008 | Age, cadence, counterparty spread. |
-| `genesis402_risk` | $0.25 | Full risk snapshot with evidence hash. |
-| `genesis402_prove` | $0.25 | Ed25519-signed receipt that a digest existed at time T. Verifies offline. |
-| `genesis402_genesis_sim` | $0.25 | Deterministic agent-economy simulation. |
-| `genesis402_wallet_ops` | $0.25 | Live operator treasury balances. |
-| `genesis402_rwa_screen` | $0.25 | Energy RWA market readiness table. |
-| `genesis402_llm` | $0.002 | One chat completion; the response names the model that answered. |
-
-Prices are read from the live `/.well-known/x402` manifest at startup, never hardcoded â€” so
-a price change on the rail can never leave this client advertising a stale number.
+| `genesis402_catalog` | free | Every endpoint with price, title, path and parameters. Call first. |
+| `genesis402_receipt` | free | A paid-call receipt by id from the public receipts feed. |
+| `genesis402_call` | per endpoint | Call any of the 360 endpoints by name. |
+| `genesis402_wallet_brief` | paid | Wallet risk signals in one call: public sanctions-list check, 10-chain scan, activity and summary, with an evidence hash. |
+| `genesis402_token_brief` | paid | Token pre-trade check: metadata, price, holder concentration, source verification, sanctions-list signal. |
+| `genesis402_screen_sanctions` | paid | Public-data sanctions-list signal: OFAC SDN digital-currency entries and community blocklists. |
+| `genesis402_multi_chain_scan` | paid | One call across 10 EVM chains for a single address. |
+| `genesis402_defi_yields` | paid | DeFi yields from 15,000+ pools, filterable by chain, protocol, token, stablecoin-only and minimum TVL. |
+| `genesis402_sec_financials` | paid | As-reported fundamentals for a US public company from SEC XBRL. |
+| `genesis402_email_check` | paid | Email/domain deliverability: MX, provider, SPF, DMARC, disposable flag. |
+| `genesis402_whois` | paid | Domain registrar, age, expiry, status and nameservers via RDAP. |
+| `genesis402_extract_json` | paid | Extract your fields from any text as JSON; missing fields are null, never invented. |
+| `genesis402_web_extract` | paid | Any public web page as clean text, title, headings and links. |
+| `genesis402_prove` | paid | A signed Ed25519 receipt binding your SHA-256 digest (or text) to a settled payment. |
 
 ## How a paid call works
 
 1. **Free validation.** Parameters go to the rail's free `/__validate` first. Bad input is
-   refused here, before a quote is even requested.
+   refused before a quote is even requested.
 2. **Free quote.** An unpaid request returns the 402 challenge with the price.
 3. **Payment**, only in live mode, only under your cap, through the standard x402 v2 client.
-4. **Result + receipt.** Every settled call appears on the rail's public
+4. **Result and receipt.** A signed receipt for every paid call, listed on the rail's public
    [receipts feed](https://twin.unykorn.org/receipts).
 
-One payment proof buys exactly one execution; re-presenting it returns 409. If delivery
-fails after payment, the proof is released and can be re-presented at no extra cost.
-
-## What's genuinely hard to get elsewhere
-
-Much of the catalog is commodity â€” hashing, encoding, checksums. Those are there for
-completeness and cost a tenth of a cent. The endpoints worth an agent's attention:
-
-- **`evm-multi-chain-scan`** â€” one call, ten EVM chains.
-- **The non-EVM spread** â€” XRPL, Stellar, Solana and Bitcoin behind one auth and one
-  response shape. Very few providers cover all four.
-- **Judgement, not reads** â€” `screen-sanctions`, `token-concentration`, `contract-verified`.
-- **`prove`** â€” a signed, hash-chained receipt that a digest existed at a point in time.
+One payment buys exactly one execution; re-presenting it returns 409.
 
 ## Limits, stated plainly
 
-- Risk and sanctions output is a **heuristic summary of public evidence**. It is not a KYC
-  decision and not advice. Absence from every list is not a clearance.
-- `prove` records a claim; it does not evaluate it. The hash chain is **not externally
-  anchored**, so a valid verdict proves the rail issued the receipt and has not altered it â€”
-  not that the rail could not have back-dated its own chain.
-- `rwa-screen` is a curated static table, not a live feed.
+- Risk and sanctions results are automated heuristic signals from public data. They are not
+  KYC, not a compliance determination, and not legal advice. Absence from every list is not a
+  clearance.
+- `prove` records a claim; it does not evaluate it. The receipt chain is **not externally
+  anchored**: a valid receipt shows the rail issued it and has not altered it, not that the
+  rail could not have back-dated its own chain.
 
 ## Environment
 
@@ -120,19 +123,10 @@ completeness and cost a tenth of a cent. The endpoints worth an agent's attentio
 ## Testing
 
 ```bash
-node smoke.mjs      # 13 read-only checks against the live rail; never pays
+node smoke.mjs      # read-only checks against the live rail; never pays
 node boot-test.mjs  # boots over stdio and lists the tools a client would see
 ```
 
-Operated by UnyKorn LLC (Wyoming). MIT licensed.
-Discovery: [`/.well-known/x402`](https://twin.unykorn.org/.well-known/x402) Â·
+UnyKorn LLC (Wyoming). MIT licensed.
+Discovery: [`/.well-known/x402`](https://twin.unykorn.org/.well-known/x402) ·
 Receipts: [`/receipts`](https://twin.unykorn.org/receipts)
-
-## Hosted endpoint (no install)
-
-Connect any MCP client that supports streamable HTTP to **https://twin.unykorn.org/mcp**. It exposes the same 14 tools over all 360 endpoints.
-
-- The hosted server holds **no keys** and cannot spend anything. A paid tool returns the exact x402 quote.
-- To pay, sign an x402 v2 payment for that quote with your own wallet (for example `@x402/fetch` or a CDP/AgentKit wallet) and call the tool again with `payment_signature`.
-- Health check: https://twin.unykorn.org/mcp/health
-

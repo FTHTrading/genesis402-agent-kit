@@ -15,7 +15,7 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.3.1";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -122,9 +122,9 @@ export function localPayerFromEnv() {
 }
 
 const NAMED = [
-  ["genesis402_wallet_brief", "wallet-brief", "Wallet due diligence in ONE call: sanctions screen + 10-chain scan + activity + summary, with an evidence hash.", { address: z.string().regex(/^0x[0-9a-fA-F]{40}$/), chain: z.string().max(24).optional() }],
+  ["genesis402_wallet_brief", "wallet-brief", "Wallet risk signals in ONE call: public sanctions-list check + 10-chain scan + activity + summary, with an evidence hash. Heuristic signals from public data: not KYC, not a compliance determination, not legal advice.", { address: z.string().regex(/^0x[0-9a-fA-F]{40}$/), chain: z.string().max(24).optional() }],
   ["genesis402_token_brief", "token-brief", "Token pre-trade check in ONE call: metadata, price, holder concentration, verification, sanctions.", { contract: z.string().regex(/^0x[0-9a-fA-F]{40}$/), chain: z.string().max(24).optional() }],
-  ["genesis402_screen_sanctions", "screen-sanctions", "Screens one address against OFAC SDN digital-currency entries and community blocklists. Not a KYC decision; absence is not clearance.", { address: z.string().min(4).max(120) }],
+  ["genesis402_screen_sanctions", "screen-sanctions", "Public-data sanctions-list signal for one address: OFAC SDN digital-currency entries and community blocklists. Risk and sanctions results are automated heuristic signals from public data. They are not KYC, not a compliance determination, and not legal advice.", { address: z.string().min(4).max(120) }],
   ["genesis402_multi_chain_scan", "evm-multi-chain-scan", "One call across 10 EVM chains for a single address.", { address: z.string().regex(/^0x[0-9a-fA-F]{40}$/) }],
   ["genesis402_defi_yields", "defi-yields", "Best DeFi yields from 15,000+ pools, filterable by chain, protocol, token, stablecoin-only and minimum TVL.", { chain: z.string().max(40).optional(), token: z.string().max(20).optional(), project: z.string().max(60).optional(), stablecoin_only: z.boolean().optional(), min_tvl_usd: z.number().optional(), sort: z.enum(["apy", "tvl"]).optional(), limit: z.number().int().min(1).max(100).optional() }],
   ["genesis402_sec_financials", "sec-financials", "As-reported fundamentals for a US public company from SEC XBRL (revenue, net income, assets, cash, EPS).", { ticker: z.string().max(60).optional(), cik: z.string().max(10).optional() }],
@@ -132,7 +132,7 @@ const NAMED = [
   ["genesis402_whois", "whois-domain", "Domain registrar, age, expiry, status and nameservers via RDAP (young domains are a fraud signal).", { domain: z.string().max(260) }],
   ["genesis402_extract_json", "text-extract-json", "Extract YOUR fields from any text as JSON; missing fields are null, never invented.", { text: z.string().max(16000), fields: z.record(z.string()) }],
   ["genesis402_web_extract", "web-extract", "Any public web page as clean text, title, headings and links.", { url: z.string().url(), max_chars: z.number().int().min(500).max(60000).optional() }],
-  ["genesis402_prove", "prove", "Signed Ed25519 receipt binding your SHA-256 digest (or text) and optional claim to a settled payment. Verifiable offline.", { sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(), text: z.string().max(16384).optional(), claim: z.string().max(512).optional() }]
+  ["genesis402_prove", "prove", "A signed Ed25519 receipt binding your SHA-256 digest (or text) and optional claim to a settled payment. The receipt signature checks offline; the receipt chain is not externally anchored.", { sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(), text: z.string().max(16384).optional(), claim: z.string().max(512).optional() }]
 ];
 const PAY_ARG = { payment_signature: z.string().max(8000).optional().describe("Optional. An x402 v2 payment you signed for this call's quote (the PAYMENT-SIGNATURE header value). Omit to get the price quote first.") };
 

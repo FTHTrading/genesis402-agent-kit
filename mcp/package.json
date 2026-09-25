@@ -1,7 +1,7 @@
 {
   "name": "genesis402-mcp",
-  "version": "0.3.0",
-  "description": "MCP server for the Genesis402 x402 rail (twin.unykorn.org): 360 pay-per-call endpoints - DeFi yields and market data, SEC filings and financials, wallet/token due diligence and sanctions screening, web and domain intelligence, AI text tools (extract, classify, translate, text-to-SQL), OpenAI-compatible chat and embeddings, and reads across Base, Ethereum, Solana, Stellar, XRPL and Bitcoin. Pays USDC on Base via x402 v2. Quote-only by default. Also hosted at https://twin.unykorn.org/mcp.",
+  "version": "0.3.1",
+  "description": "Genesis402: pay-per-call APIs for AI agents over x402. MCP server for twin.unykorn.org: 360 endpoints (DeFi and market data, SEC financials, wallet and token risk signals from public data, web and domain lookups, AI text tools, multi-chain reads). Quote-only by default: nothing is signed or paid until you turn paying on and set a price cap. Hosted at https://twin.unykorn.org/mcp.",
   "type": "module",
   "bin": {
     "genesis402-mcp": "index.mjs",
@@ -50,12 +50,11 @@
     "llm",
     "embeddings",
     "web-scraping",
-    "kyt",
     "openai-compatible",
     "defi",
     "sec",
-    "due-diligence",
-    "streamable-http"
+    "streamable-http",
+    "risk-signals"
   ],
   "mcpName": "io.github.FTHTrading/genesis402-mcp"
 }
