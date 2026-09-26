@@ -2,6 +2,8 @@
 
 [![npm](https://img.shields.io/npm/v/genesis402-mcp)](https://www.npmjs.com/package/genesis402-mcp)
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/fthtrading/genesis402-agent-kit)
+[![Smithery](https://smithery.ai/badge/kevanbtc/genesis402-mcp)](https://smithery.ai/servers/kevanbtc/genesis402-mcp)
+[![Glama](https://glama.ai/mcp/servers/FTHTrading/genesis402-agent-kit/badge)](https://glama.ai/mcp/servers/FTHTrading/genesis402-agent-kit)
 [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-io.github.FTHTrading%2Fgenesis402--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=genesis402)
 [![ERC-8004 agent 95721](https://img.shields.io/badge/ERC--8004-agent%2095721%20on%20Base-purple)](https://8004scan.io/agents/base/95721)
 [![Live status](https://img.shields.io/badge/status-twin.unykorn.org%2Fstatus-green)](https://twin.unykorn.org/status)
