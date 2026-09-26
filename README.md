@@ -6,7 +6,7 @@
 [![ERC-8004 agent 95721](https://img.shields.io/badge/ERC--8004-agent%2095721%20on%20Base-purple)](https://8004scan.io/agents/base/95721)
 [![Live status](https://img.shields.io/badge/status-twin.unykorn.org%2Fstatus-green)](https://twin.unykorn.org/status)
 
-**360 pay-per-call APIs for AI agents over x402.** USDC on Base, $0.001 to $0.25 a call, no API key, no account. Every response names its sources and carries an evidence hash; a paid call that is not delivered is credited automatically.
+**360 pay-per-call APIs for AI agents over x402 and MPP.** USDC on Base, $0.001 to $0.25 a call, no API key, no account. Every response names its sources and carries an evidence hash; a paid call that is not delivered is credited automatically.
 
 Rail: https://twin.unykorn.org · Catalog: https://twin.unykorn.org/catalog · Live status: https://twin.unykorn.org/status · Receipts: https://twin.unykorn.org/receipts
 
@@ -40,7 +40,7 @@ The hosted server holds no keys. Free tools (catalog, receipts, examples) just w
 
 Without `GENESIS402_LIVE=1` the server is quote-only: it shows the price and signs nothing. The server never raises a price on its own; the rail sets it, the client decides.
 
-**Plain HTTP (any language):**
+**Plain HTTP (any language), x402:**
 
 ```
 GET https://twin.unykorn.org/price/bitcoin
@@ -48,6 +48,18 @@ GET https://twin.unykorn.org/price/bitcoin
 sign the USDC authorization (EIP-3009) for the quoted amount, retry with X-PAYMENT
 → 200 + result + receipt id
 ```
+
+**Plain HTTP, MPP (the "Payment" HTTP auth scheme):**
+
+```
+GET https://twin.unykorn.org/price/bitcoin
+→ 402, header WWW-Authenticate: Payment id="…", method="usdc", intent="charge", request="…"
+sign the same EIP-3009 authorization for the challenged amount, retry with
+   Authorization: Payment <base64url credential>
+→ 200 + result + Payment-Receipt header
+```
+
+Both dialects quote the same price to the same address in the same token. Discovery for MPP clients is the standard `/openapi.json` with `x-payment-info` on every operation.
 
 Free before you pay: `POST /__validate` checks your parameters with the same validator the paid path uses, so a bad request is never charged.
 
@@ -67,7 +79,7 @@ Free before you pay: `POST /__validate` checks your parameters with the same val
 | AI on our own GPU | 16 | `/v1/chat/completions` (OpenAI-compatible), `/v1/embeddings`, `/ai/extract`, `/ai/text-to-sql`, `/ai/summarize` | $0.002–$0.01 |
 | Proofs | 2 | `/prove` (Ed25519-signed receipt binding your digest to a settled payment), `/json-canonical` | $0.001–$0.25 |
 
-The full list with schemas and live examples: https://twin.unykorn.org/catalog and `/.well-known/x402`.
+The full list with schemas and live examples: https://twin.unykorn.org/catalog, `/.well-known/x402`, and `/openapi.json`.
 
 ## MCP tools (v0.3.1)
 
@@ -83,7 +95,7 @@ Free: `catalog`, `receipt`, `examples`. Paid, generic: `call(name, params)`. Pai
 
 ## Payment rails
 
-x402 v2 `exact` scheme. USDC on Base (primary), Polygon and Solana via facilitator settlement; XRP and USDC on XRPL and Stellar are pay-first with the payment bound to the challenge nonce. The 402 lists exactly which lanes are payable right now.
+x402 v2 `exact` scheme and MPP `usdc`/`charge` (EIP-3009 authorization), both on USDC on Base (primary) and Polygon; Solana USDC via facilitator settlement; XRP and USDC on XRPL and Stellar are pay-first with the payment bound to the challenge nonce. The 402 lists exactly which lanes are payable right now.
 
 ## Repo layout
 
