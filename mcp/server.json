@@ -1,20 +1,20 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.FTHTrading/genesis402-mcp",
-  "title": "Genesis402 (x402 pay-per-call)",
-  "description": "Genesis402: pay-per-call APIs for AI agents over x402. A signed receipt for every paid call.",
+  "title": "Genesis402 by UnyKorn (x402 pay-per-call)",
+  "description": "360 pay-per-call APIs for AI agents over x402: DeFi, chain reads, risk, SEC, web intel.",
   "repository": {
     "url": "https://github.com/FTHTrading/genesis402-agent-kit",
     "source": "github",
     "subfolder": "mcp"
   },
   "websiteUrl": "https://twin.unykorn.org/catalog",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "genesis402-mcp",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "transport": {
         "type": "stdio"
       },
@@ -42,6 +42,22 @@
     {
       "type": "streamable-http",
       "url": "https://twin.unykorn.org/mcp"
+    }
+  ],
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/FTHTrading/genesis402-agent-kit/main/assets/genesis402-icon-512.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ]
+    },
+    {
+      "src": "https://raw.githubusercontent.com/FTHTrading/genesis402-agent-kit/main/assets/genesis402-icon-256.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "256x256"
+      ]
     }
   ]
 }
