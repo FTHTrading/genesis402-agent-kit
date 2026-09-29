@@ -1,0 +1,45 @@
+name: release-mcp
+
+# Publishes mcp/ (genesis402-mcp) to npm via the OIDC Trusted Publisher configured on npmjs.com
+# (repo FTHTrading/genesis402-agent-kit, workflow release-mcp.yml). No npm token is stored anywhere.
+# Trigger: push a tag vX.Y.Z that matches mcp/package.json "version", or run manually.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # required for npm trusted publishing (OIDC) + provenance
+
+jobs:
+  publish:
+    name: npm publish genesis402-mcp
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - name: npm >= 11.5.1 (trusted publishing needs it)
+        run: npm install -g npm@latest && npm --version
+      - run: npm ci
+      - run: npm test
+        env:
+          GENESIS402_LIVE: "0"
+      - name: tag must match package.json version
+        if: github.ref_type == 'tag'
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "package=$PKG tag=$TAG"
+          test "$PKG" = "$TAG"
+      - name: publish (OIDC, provenance)
+        run: npm publish --provenance --access public
