@@ -1,8 +1,8 @@
 name: release-mcp
 
-# Publishes mcp/ (genesis402-mcp) to npm via the OIDC Trusted Publisher configured on npmjs.com
-# (repo FTHTrading/genesis402-agent-kit, workflow release-mcp.yml). No npm token is stored anywhere.
-# Trigger: push a tag vX.Y.Z that matches mcp/package.json "version", or run manually.
+# Releases mcp/ (genesis402-mcp): npm via the OIDC Trusted Publisher, then the MCP Registry via
+# mcp-publisher's github-oidc login (namespace io.github.FTHTrading). No tokens stored anywhere.
+# Trigger: push tag vX.Y.Z matching mcp/package.json + mcp/server.json, or run manually (idempotent).
 
 on:
   push:
@@ -11,13 +11,17 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # required for npm trusted publishing (OIDC) + provenance
+  id-token: write   # npm trusted publishing + provenance, and MCP Registry github-oidc
+
+concurrency:
+  group: release-mcp
+  cancel-in-progress: false
 
 jobs:
   publish:
-    name: npm publish genesis402-mcp
+    name: npm + MCP Registry
     runs-on: ubuntu-latest
-    environment: release-mcp   # must match the environment on the npm Trusted Publisher entry
+    environment: release-mcp   # matches the npm Trusted Publisher entry
     defaults:
       run:
         working-directory: mcp
@@ -35,12 +39,42 @@ jobs:
       - run: npm test
         env:
           GENESIS402_LIVE: "0"
-      - name: tag must match package.json version
-        if: github.ref_type == 'tag'
+
+      - name: versions must agree (package.json, server.json x2, tag)
+        id: ver
         run: |
           PKG=$(node -p "require('./package.json').version")
-          TAG="${GITHUB_REF_NAME#v}"
-          echo "package=$PKG tag=$TAG"
-          test "$PKG" = "$TAG"
-      - name: publish (OIDC, provenance)
+          SJ=$(node -p "require('./server.json').version")
+          SJP=$(node -p "require('./server.json').packages[0].version")
+          echo "package=$PKG server.json=$SJ server.json.packages[0]=$SJP ref=$GITHUB_REF_NAME"
+          test "$PKG" = "$SJ" && test "$PKG" = "$SJP"
+          if [ "${{ github.ref_type }}" = "tag" ]; then test "$PKG" = "${GITHUB_REF_NAME#v}"; fi
+          echo "version=$PKG" >> "$GITHUB_OUTPUT"
+
+      - name: already on npm?
+        id: npmcheck
+        run: |
+          if npm view "genesis402-mcp@${{ steps.ver.outputs.version }}" version >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+      - name: npm publish (OIDC, provenance)
+        if: steps.npmcheck.outputs.exists == 'false'
         run: npm publish --provenance --access public
+      - name: npm publish skipped
+        if: steps.npmcheck.outputs.exists == 'true'
+        run: echo "genesis402-mcp@${{ steps.ver.outputs.version }} is already on npm; skipping"
+
+      - name: install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher --version
+      - name: MCP Registry login (github-oidc) + publish
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+      - name: verify registry shows this version
+        run: |
+          for i in $(seq 1 12); do
+            V=$(curl -fsS "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.FTHTrading/genesis402-mcp" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const hit=(j.servers||[]).map(x=>x.server||x).find(x=>x.name==="io.github.FTHTrading/genesis402-mcp"&&x.version==="'"${{ steps.ver.outputs.version }}"'");process.stdout.write(hit?hit.version:"")})')
+            if [ "$V" = "${{ steps.ver.outputs.version }}" ]; then echo "registry has $V"; exit 0; fi
+            sleep 10
+          done
+          echo "registry did not report ${{ steps.ver.outputs.version }} in time"; exit 1
