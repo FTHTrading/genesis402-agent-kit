@@ -62,6 +62,14 @@ jobs:
         if: steps.npmcheck.outputs.exists == 'true'
         run: echo "genesis402-mcp@${{ steps.ver.outputs.version }} is already on npm; skipping"
 
+      - name: wait until npm serves this version (the MCP Registry validates against npm)
+        run: |
+          for i in $(seq 1 40); do
+            if npm view "genesis402-mcp@${{ steps.ver.outputs.version }}" version >/dev/null 2>&1; then echo "npm serves ${{ steps.ver.outputs.version }}"; exit 0; fi
+            sleep 15
+          done
+          echo "npm did not serve ${{ steps.ver.outputs.version }} within 10 minutes"; exit 1
+
       - name: install mcp-publisher
         run: |
           curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
