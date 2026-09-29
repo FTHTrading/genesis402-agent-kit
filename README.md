@@ -16,7 +16,7 @@
 <p align="center">
   <b>360 pay-per-call APIs for AI agents over x402 and MPP.</b><br>
   USDC on Base · $0.001 to $0.25 a call · no API key · no account.<br>
-  Every response names its sources and carries an evidence hash. A paid call that is not delivered is credited automatically.
+  Every response names its sources and carries an evidence hash. A paid call that is not delivered is re-delivered free on retry.
 </p>
 
 <p align="center">
@@ -126,11 +126,11 @@ Live prices come from the rail's manifest; `genesis402_catalog` shows them. Ever
 
 Full list with schemas and live examples: [catalog](https://twin.unykorn.org/catalog), `/.well-known/x402`, `/openapi.json`.
 
-## Guarantees
+## What the rail commits to
 
 - **Validate before pay.** Bad input returns 400 with "nothing was charged".
 - **Sources on every answer.** Each response lists the upstream it read and an `evidence_hash`. A failed upstream is an error, never a silent zero.
-- **Make-good.** A paid call that is not delivered is credited to the payer automatically; the guardian reconciles every settlement on-chain within 48 hours.
+- **Make-good.** A paid call that is not delivered is recorded as owed and re-delivered free on retry; the guardian reconciles every settlement on-chain within 48 hours.
 - **Public status.** [twin.unykorn.org/status](https://twin.unykorn.org/status) is the guardian's own report, refreshed every 5 minutes.
 - **Identity.** ERC-8004 agent 95721 on Base; A2A card at the rail root.
 
