@@ -39,11 +39,16 @@ try {
   const tools = list.result?.tools || [];
   console.log(`\ntools/list -> ${tools.length} tools\n`);
   for (const t of tools) console.log("  " + t.name.padEnd(32) + " :: " + t.description.slice(0, 78));
+  const noSchema = tools.filter((t) => !t.outputSchema || t.outputSchema.type !== "object");
+  if (noSchema.length) throw new Error("tools without an outputSchema: " + noSchema.map((t) => t.name).join(", "));
+  console.log(`\noutputSchema -> declared on all ${tools.length} tools`);
 
   // Exercise the free catalog tool and the invalid-input guard.
   send({ jsonrpc: "2.0", id: 3, method: "tools/call",
     params: { name: "genesis402_catalog", arguments: { filter: "xrpl" } } });
-  const cat = JSON.parse((await waitFor(3)).result.content[0].text);
+  const catRes = (await waitFor(3)).result;
+  const cat = JSON.parse(catRes.content[0].text);
+  if (!catRes.structuredContent || catRes.structuredContent.matched !== cat.matched) throw new Error("catalog: structuredContent missing or out of sync with text");
   console.log(`\ncatalog(filter=xrpl) -> ${cat.matched} of ${cat.total_endpoints}, mode: ${cat.payer_mode}`);
 
   send({ jsonrpc: "2.0", id: 4, method: "tools/call",
@@ -63,6 +68,7 @@ try {
     params: { name: "genesis402_call", arguments: { endpoint: "evm-multi-chain-scan", params: { address: "0x0000000000000000000000000000000000000000" } } } });
   const quote = await waitFor(6);
   const q = JSON.parse(quote.result.content[0].text);
+  if (quote.result.isError || quote.result.structuredContent?.mode !== "QUOTE_ONLY") throw new Error("quote: structuredContent missing or wrong mode: " + JSON.stringify(quote.result).slice(0, 300));
   console.log(`\nvalid params -> mode=${q.mode} price=$${q.price?.usd} (nothing signed)`);
 } catch (e) {
   console.error("BOOT TEST FAILED:", e.message);

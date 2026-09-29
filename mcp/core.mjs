@@ -15,13 +15,16 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.3";
+export const VERSION = "0.3.4";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 
 const text = (obj) => ({ content: [{ type: "text", text: typeof obj === "string" ? obj : JSON.stringify(obj, null, 2) }] });
 const fail = (obj) => ({ ...text(obj), isError: true });
+// Success results carry the same object twice: as structuredContent (validated
+// against the tool's outputSchema) and as its JSON text for clients that only read text.
+const ok = (obj) => ({ ...text(obj), structuredContent: obj });
 
 // ---------------------------------------------------------------------------
 // Live manifest (shared, refreshed every 10 minutes).
@@ -87,21 +90,21 @@ async function callPaid(name, params, payer, paymentSignature) {
     const body = await res.json().catch(() => null);
     let settlement = null; const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
     if (pr) { try { settlement = decodePaymentResponseHeader(pr); } catch {} }
-    return res.ok ? text({ paid: true, settlement, result: body }) : fail({ status: res.status, paid: false, ...body });
+    return res.ok ? ok({ mode: "PAID", paid: true, price: null, settlement, result: body }) : fail({ status: res.status, paid: false, ...body });
   }
 
   const probe = await fetch(url, init);
   const probeBody = await probe.json().catch(() => null);
-  if (probe.status !== 402) return probe.ok ? text(probeBody) : fail({ status: probe.status, ...probeBody });
+  if (probe.status !== 402) return probe.ok ? ok({ mode: "FREE", paid: false, result: probeBody }) : fail({ status: probe.status, ...probeBody });
   const challenge = decodeChallenge(probe, probeBody);
   const quote = baseQuote(challenge);
 
   if (!payer) {
-    return text({
-      mode: "QUOTE_ONLY", resource: url, price: quote,
+    return ok({
+      mode: "QUOTE_ONLY", paid: false, resource: url, price: quote,
       also_accepted_networks: (challenge?.accepts || []).map((a) => a.network),
       what_you_get: challenge?.resource?.description || challenge?.resource?.what_you_get,
-      payment_required_b64: probe.headers.get("payment-required"),
+      payment_required_b64: probe.headers.get("payment-required") || null,
       how_to_pay: "Sign an x402 v2 payment for this quote with your own wallet (e.g. @x402/fetch, Coinbase AgentKit/CDP wallet) and call this tool again with payment_signature=<the PAYMENT-SIGNATURE header value>. Or call " + url + " directly over HTTP with any x402 client. This server never holds your keys."
     });
   }
@@ -111,7 +114,7 @@ async function callPaid(name, params, payer, paymentSignature) {
   const body = await res.json().catch(() => null);
   let settlement = null; const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
   if (pr) { try { settlement = decodePaymentResponseHeader(pr); } catch {} }
-  return res.ok ? text({ paid: quote, settlement, result: body }) : fail({ status: res.status, paid: false, ...body });
+  return res.ok ? ok({ mode: "PAID", paid: true, price: quote, settlement, result: body }) : fail({ status: res.status, paid: false, ...body });
 }
 
 export function localPayerFromEnv() {
@@ -120,6 +123,45 @@ export function localPayerFromEnv() {
   const account = privateKeyToAccount(key.startsWith("0x") ? key : `0x${key}`);
   return { paidFetch: wrapFetchWithPaymentFromConfig(fetch, { schemes: [{ network: BASE, client: new ExactEvmScheme(account) }] }), maxUsd: Number(process.env.GENESIS402_MAX_USD || "0.25") };
 }
+
+// ---------------------------------------------------------------------------
+// Output schemas. Every successful call returns structuredContent matching one of these.
+// ---------------------------------------------------------------------------
+const QUOTE = z.object({
+  atomic: z.string().describe("Price in USDC atomic units (6 decimals), as a decimal string."),
+  usd: z.number().describe("Price in US dollars."),
+  payTo: z.string().describe("Address the payment settles to."),
+  network: z.string().describe("CAIP-2 network id of the lane, eip155:8453 (Base).")
+});
+const PAID_OUTPUT = {
+  mode: z.enum(["QUOTE_ONLY", "PAID", "FREE"]).describe("QUOTE_ONLY: price quote only, nothing signed or charged. PAID: the call was paid and result holds the data. FREE: the endpoint answered without payment."),
+  paid: z.boolean().describe("true only when a payment was settled for this call."),
+  price: QUOTE.nullable().optional().describe("The Base USDC quote. Present on QUOTE_ONLY and on PAID calls made by a local payer; null when the rail offered no Base USDC lane or the caller signed the payment."),
+  resource: z.string().optional().describe("QUOTE_ONLY: the full URL of the paid resource."),
+  also_accepted_networks: z.array(z.string()).optional().describe("QUOTE_ONLY: every network the 402 challenge accepts."),
+  what_you_get: z.string().optional().describe("QUOTE_ONLY: the rail's description of what the payment buys."),
+  payment_required_b64: z.string().nullable().optional().describe("QUOTE_ONLY: the raw base64 PAYMENT-REQUIRED header, to sign with any x402 v2 client."),
+  how_to_pay: z.string().optional().describe("QUOTE_ONLY: how to sign and resend the call."),
+  settlement: z.any().optional().describe("PAID: decoded PAYMENT-RESPONSE settlement (transaction hash, network, payer), or null if the rail sent none."),
+  result: z.any().optional().describe("PAID or FREE: the endpoint's JSON result.")
+};
+const CATALOG_OUTPUT = {
+  origin: z.string().describe("Rail origin the catalog was read from."),
+  total_endpoints: z.number().int().describe("Number of endpoints in the live manifest."),
+  matched: z.number().int().describe("Number of endpoints matching the filter."),
+  payer_mode: z.string().describe("QUOTE_ONLY, HOSTED, or LIVE (cap $X) for a local self-paying server."),
+  endpoints: z.array(z.object({
+    name: z.string().describe("Endpoint name to pass to genesis402_call."),
+    path: z.string().describe("HTTP path on the rail."),
+    price_usd: z.number().nullable().describe("Price per call in USD, null if the manifest carries none."),
+    title: z.string().optional().describe("Short human title."),
+    parameters: z.any().optional().describe("Parameter schema from the manifest.")
+  })).describe("Matching endpoints, at most 400.")
+};
+const RECEIPT_OUTPUT = {
+  receipt_id: z.string().describe("The id that was looked up."),
+  receipt: z.record(z.any()).describe("The receipt exactly as published on the rail's receipts feed.")
+};
 
 const EVM_ADDR = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 const CHAIN = z.string().max(24).optional().describe("Optional EVM chain name to focus on, e.g. ethereum or base. Omit to cover all supported chains.");
@@ -193,22 +235,25 @@ export async function createServer({ payer = null, hosted = false } = {}) {
   await loadCatalog();
   const server = new McpServer({ name: "genesis402", title: "Genesis402 by UnyKorn", version: VERSION }, { instructions: INSTRUCTIONS });
   const ro = { readOnlyHint: true, openWorldHint: true };
-  server.registerTool("genesis402_catalog", { title: "List endpoints and prices (free)", description: "Free, no payment. Lists every Genesis402 endpoint with its name, HTTP path, USD price, title and parameter schema, read from the live /.well-known/x402 manifest. Call this first to find the right endpoint name and parameters for genesis402_call; the dedicated genesis402_* tools cover the most used endpoints directly. Read-only. Returns the total count, the matches and the current payer mode.", inputSchema: { filter: z.string().max(60).optional().describe("Optional keyword to narrow the list, matched against endpoint name, title and tags, e.g. \"defi\", \"sec\", \"price\". Omit for all endpoints.") }, annotations: ro }, async ({ filter }) => {
+  server.registerTool("genesis402_catalog", { title: "List endpoints and prices (free)", description: "Free, no payment. Lists every Genesis402 endpoint with its name, HTTP path, USD price, title and parameter schema, read from the live /.well-known/x402 manifest. Call this first to find the right endpoint name and parameters for genesis402_call; the dedicated genesis402_* tools cover the most used endpoints directly. Read-only. Returns the total count, the matches and the current payer mode.", inputSchema: { filter: z.string().max(60).optional().describe("Optional keyword to narrow the list, matched against endpoint name, title and tags, e.g. \"defi\", \"sec\", \"price\". Omit for all endpoints.") }, outputSchema: CATALOG_OUTPUT, annotations: ro }, async ({ filter }) => {
     await loadCatalog(); const f = (filter || "").toLowerCase();
     const rows = [...CATALOG.values()].filter((s) => !f || `${s.name} ${s.title || ""} ${(s.tags || []).join(" ")}`.toLowerCase().includes(f)).map((s) => ({ name: s.name, path: pathOf(s.name), price_usd: priceOf(s.name), title: s.title, parameters: s.parameters }));
-    return text({ origin: ORIGIN, total_endpoints: CATALOG.size, matched: rows.length, payer_mode: payer ? `LIVE (cap $${payer.maxUsd})` : hosted ? "HOSTED: quote, or pay with your own signed payment_signature" : "QUOTE_ONLY", endpoints: rows.slice(0, 400) });
+    return ok({ origin: ORIGIN, total_endpoints: CATALOG.size, matched: rows.length, payer_mode: payer ? `LIVE (cap $${payer.maxUsd})` : hosted ? "HOSTED: quote, or pay with your own signed payment_signature" : "QUOTE_ONLY", endpoints: rows.slice(0, 400) });
   });
-  server.registerTool("genesis402_receipt", { title: "Look up a receipt (free)", description: "Free, no payment. Fetches one paid-call receipt by id from the rail's public receipts feed, to confirm a call was paid and delivered. Use to verify a genesis402_prove receipt or any paid call later. Read-only and idempotent. Returns the receipt as JSON, or an error with the HTTP status if the id is not found.", inputSchema: { receipt_id: z.string().min(4).max(80).describe("The receipt id exactly as returned with a paid call result or by genesis402_prove, 4 to 80 characters.") }, annotations: ro }, async ({ receipt_id }) => {
-    const r = await fetch(`${ORIGIN}/receipts/${encodeURIComponent(receipt_id)}`); return r.ok ? text(await r.json()) : fail({ status: r.status });
+  server.registerTool("genesis402_receipt", { title: "Look up a receipt (free)", description: "Free, no payment. Fetches one paid-call receipt by id from the rail's public receipts feed, to confirm a call was paid and delivered. Use to verify a genesis402_prove receipt or any paid call later. Read-only and idempotent. Returns the receipt as JSON, or an error with the HTTP status if the id is not found.", inputSchema: { receipt_id: z.string().min(4).max(80).describe("The receipt id exactly as returned with a paid call result or by genesis402_prove, 4 to 80 characters.") }, outputSchema: RECEIPT_OUTPUT, annotations: ro }, async ({ receipt_id }) => {
+    const r = await fetch(`${ORIGIN}/receipts/${encodeURIComponent(receipt_id)}`);
+    if (!r.ok) return fail({ status: r.status, receipt_id });
+    const receipt = await r.json().catch(() => null);
+    return receipt && typeof receipt === "object" && !Array.isArray(receipt) ? ok({ receipt_id, receipt }) : fail({ error: "malformed_receipt", receipt_id });
   });
-  server.registerTool("genesis402_call", { title: "Call any endpoint", description: `Calls any of the ${CATALOG.size || 360} Genesis402 endpoints by name (DeFi, SEC filings, research, web/domain intel, AI text tools, multi-chain reads). Prices $0.001-$0.25 USDC on Base. Use for any endpoint without a dedicated tool; look up the name and parameters with genesis402_catalog first. Parameters are validated for free before any quote. Without payment_signature (or a local payer) it returns the exact price quote and signs nothing; with payment it returns the result plus the settlement details.`, inputSchema: { endpoint: z.string().min(2).max(64).describe("Endpoint name exactly as listed by genesis402_catalog, e.g. \"defi-yields\" or \"wallet-brief\" (a leading slash is ignored)."), params: z.record(z.any()).optional().describe("Parameters for that endpoint as an object, matching the parameter schema shown in genesis402_catalog. Omit if the endpoint takes none."), ...PAY_ARG }, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ endpoint, params, payment_signature }) => {
+  server.registerTool("genesis402_call", { title: "Call any endpoint", description: `Calls any of the ${CATALOG.size || 360} Genesis402 endpoints by name (DeFi, SEC filings, research, web/domain intel, AI text tools, multi-chain reads). Prices $0.001-$0.25 USDC on Base. Use for any endpoint without a dedicated tool; look up the name and parameters with genesis402_catalog first. Parameters are validated for free before any quote. Without payment_signature (or a local payer) it returns the exact price quote and signs nothing; with payment it returns the result plus the settlement details.`, inputSchema: { endpoint: z.string().min(2).max(64).describe("Endpoint name exactly as listed by genesis402_catalog, e.g. \"defi-yields\" or \"wallet-brief\" (a leading slash is ignored)."), params: z.record(z.any()).optional().describe("Parameters for that endpoint as an object, matching the parameter schema shown in genesis402_catalog. Omit if the endpoint takes none."), ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ endpoint, params, payment_signature }) => {
     await loadCatalog(); const name = String(endpoint).replace(/^\//, "");
     if (CATALOG_OK && !CATALOG.has(name)) return fail({ error: "unknown_endpoint", endpoint: name, did_you_mean: [...CATALOG.keys()].filter((k) => k.includes(name) || name.includes(k)).slice(0, 8) });
     return callPaid(name, params || {}, payer, payment_signature);
   });
   for (const [tool, endpoint, blurb, schema] of NAMED) {
     if (CATALOG_OK && !CATALOG.has(endpoint)) continue;
-    server.registerTool(tool, { title: TITLES[tool] || tool, description: `${priceTag(endpoint)}. ${blurb} ${PAY_FLOW}`, inputSchema: { ...schema, ...PAY_ARG }, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, ...p }) => callPaid(endpoint, p, payer, payment_signature));
+    server.registerTool(tool, { title: TITLES[tool] || tool, description: `${priceTag(endpoint)}. ${blurb} ${PAY_FLOW}`, inputSchema: { ...schema, ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, ...p }) => callPaid(endpoint, p, payer, payment_signature));
   }
   return server;
 }
