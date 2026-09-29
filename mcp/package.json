@@ -1,6 +1,6 @@
 {
   "name": "genesis402-mcp",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Genesis402 by UnyKorn: 360 pay-per-call APIs for AI agents over x402 and MPP (USDC on Base). DeFi and market data, multi-chain reads, wallet and token risk signals, SEC financials, web and domain intel, AI text tools. Quote-only by default; hosted at https://twin.unykorn.org/mcp.",
   "type": "module",
   "bin": {
@@ -57,5 +57,8 @@
     "risk-signals"
   ],
   "mcpName": "io.github.FTHTrading/genesis402-mcp",
-  "author": "UnyKorn LLC"
+  "author": "UnyKorn LLC",
+  "scripts": {
+    "test": "node --check core.mjs && node --check http.mjs && node --check index.mjs && node boot-test.mjs && node smoke.mjs"
+  }
 }

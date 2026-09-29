@@ -15,7 +15,7 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.2";
+export const VERSION = "0.3.3";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -125,62 +125,80 @@ const EVM_ADDR = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 const CHAIN = z.string().max(24).optional().describe("Optional EVM chain name to focus on, e.g. ethereum or base. Omit to cover all supported chains.");
 const NAMED = [
   ["genesis402_wallet_brief", "wallet-brief",
-    "Wallet risk signals in ONE call: public sanctions-list check, 10-chain EVM balance/activity scan and a plain-language summary, with an evidence hash. Use before sending funds to or accepting funds from an unknown address. The result lists its sources and an evidence hash. Heuristic signals from public data: not KYC, not a compliance determination, not legal advice. For a sanctions check alone use genesis402_screen_sanctions (cheaper); for raw balances alone use genesis402_multi_chain_scan.",
-    { address: EVM_ADDR.describe("The EVM wallet address to check, 0x followed by 40 hex characters."), chain: CHAIN }],
+    "Full risk brief for one EVM wallet in a single call: sanctions-list check (OFAC SDN digital-currency entries), native balance and activity scan across 10 EVM chains, recent activity on the chosen chain and a plain-language summary. Use before sending funds to, or accepting funds from, an unknown address. For a sanctions check alone use genesis402_screen_sanctions (cheaper, any chain); for balances without risk signals use genesis402_multi_chain_scan; for a token contract use genesis402_token_brief. Returns each part with its own sources (a part that cannot be read is marked unavailable with the reason, never zeroed) and an evidence hash over all parts. Heuristic signals from public data: not KYC, not a compliance determination, not legal advice.",
+    { address: EVM_ADDR.describe("The EVM wallet address to check, 0x followed by 40 hex characters. Checksum case is optional."), chain: CHAIN }],
   ["genesis402_token_brief", "token-brief",
-    "Token pre-trade check in ONE call for an ERC-20 contract: metadata, price, holder concentration, contract verification and a sanctions-list check. Use before buying, listing or accepting an unfamiliar token. The result lists its sources and an evidence hash. Signals only, not investment advice.",
-    { contract: EVM_ADDR.describe("The ERC-20 token contract address, 0x followed by 40 hex characters (not a wallet address)."), chain: CHAIN }],
+    "Pre-trade check for one ERC-20 token contract in a single call: name, symbol, decimals and supply, current USD price, top-holder concentration, source-verification status and a sanctions-list check on the contract address. Use before buying, listing or accepting an unfamiliar token. For a wallet rather than a token use genesis402_wallet_brief. Returns each part with its sources (unreadable parts are marked unavailable, never zeroed) and an evidence hash. Signals only, not investment advice.",
+    { contract: EVM_ADDR.describe("The ERC-20 token contract address, 0x followed by 40 hex characters. Must be the token contract, not a holder's wallet."),
+      chain: z.enum(["base", "ethereum", "polygon", "arbitrum", "optimism"]).optional().describe("Chain the token contract lives on. Defaults to base when omitted.") }],
   ["genesis402_screen_sanctions", "screen-sanctions",
-    "Public-data sanctions-list signal for one address on any chain: OFAC SDN digital-currency entries plus community blocklists. Use as a fast first gate on a counterparty address. The result lists its sources and an evidence hash. Automated heuristic signal from public data: not KYC, not a compliance determination, not legal advice. For a fuller risk picture use genesis402_wallet_brief.",
-    { address: z.string().min(4).max(120).describe("The crypto address to screen, as a string (4 to 120 characters).") }],
+    "List lookup for one address on any chain against OFAC SDN digital-currency entries, community scam-address blocklists and the Blockchain Fraud case registry. Use as a fast, cheap first gate on a counterparty address. For balances plus sanctions plus a summary on an EVM address use genesis402_wallet_brief. Returns whether any list matched, and for every list consulted its dataset name, fetch URL and entry count, plus an evidence hash. A hit means the address appears on a published list; absence from every list is not a clearance. Not a compliance decision, not a finding about any person, not legal advice.",
+    { address: z.string().min(4).max(120).describe("The crypto address to screen, on any chain, exactly as written on that chain (4 to 120 characters, no spaces).") }],
   ["genesis402_multi_chain_scan", "evm-multi-chain-scan",
-    "Reads ONE address across 10 EVM chains in a single call, showing where it holds funds and is active. Use to find where an address is active before drilling into one chain. Public on-chain data with sources and an evidence hash; no risk scoring (use genesis402_wallet_brief for that).",
-    { address: EVM_ADDR.describe("The EVM address to scan, 0x followed by 40 hex characters.") }],
+    "Sweeps one address across 10 EVM chains at once and reports where it is actually active. Use to find which networks an address uses before drilling into one chain. No risk scoring or sanctions check: for that use genesis402_wallet_brief. Returns, per chain, the native balance, the number of transactions sent and whether contract bytecode is deployed; chains whose RPC did not answer are listed separately, never counted as inactive. Activity is inferred from nonce, balance and code, so an address that only ever received tokens can show a zero nonce; check its balance field. Public on-chain data with sources and an evidence hash.",
+    { address: EVM_ADDR.describe("The EVM address to scan, 0x followed by 40 hex characters. Checksum case is optional.") }],
   ["genesis402_defi_yields", "defi-yields",
-    "Ranked DeFi yield opportunities from 15,000+ pools, filterable by chain, protocol, token, stablecoin-only and minimum TVL. Use to answer 'where is the best yield for X'. Returns up to `limit` pools with protocol, chain, token, APY and TVL, plus sources and an evidence hash. APYs are variable and backward-looking; not investment advice.",
+    "Ranked DeFi yield pools from DefiLlama (15,000+ pools), filterable by chain, protocol, token, stablecoin-only and minimum TVL. Use to answer 'where is the best yield for X'. For other DeFi or market data search genesis402_catalog and call the endpoint through genesis402_call. All filters are optional and combine with AND; with none set it returns the top pools above $1M TVL. Returns up to limit pools, each with protocol, chain, symbol, TVL, base APY vs reward APY, 30-day mean APY, impermanent-loss risk, exposure and DefiLlama's outlook class. APYs are variable and backward-looking; not investment advice.",
     { chain: z.string().max(40).optional().describe("Filter to one chain by name, e.g. Ethereum, Base, Arbitrum. Omit for all chains."),
-      token: z.string().max(20).optional().describe("Filter to pools containing this token symbol, e.g. USDC, ETH, WBTC. Case-insensitive."),
-      project: z.string().max(60).optional().describe("Filter to one protocol by its slug, e.g. aave-v3. Omit for all protocols."),
-      stablecoin_only: z.boolean().optional().describe("true = only stablecoin pools."),
-      min_tvl_usd: z.number().optional().describe("Minimum pool TVL in USD, e.g. 1000000 to skip small pools."),
+      token: z.string().max(20).optional().describe("Token symbol that must be in the pool, e.g. USDC, ETH, WBTC."),
+      project: z.string().max(60).optional().describe("Filter to one protocol by its DefiLlama slug, e.g. aave-v3. Omit for all protocols."),
+      stablecoin_only: z.boolean().optional().describe("true = only stablecoin pools. Omit or false for all pools."),
+      min_tvl_usd: z.number().optional().describe("Minimum pool TVL in US dollars as a plain number. Defaults to 1000000 ($1M) when omitted."),
       sort: z.enum(["apy", "tvl"]).optional().describe("Sort order: 'apy' (highest yield first) or 'tvl' (largest pool first)."),
       limit: z.number().int().min(1).max(100).optional().describe("How many pools to return, 1 to 100.") }],
   ["genesis402_sec_financials", "sec-financials",
-    "As-reported fundamentals for a US public company from SEC XBRL filings: revenue, net income, assets, cash and EPS. Use for quick fundamentals without a data vendor. Give either ticker or cik (one is required). Values are as filed, with sources and an evidence hash; not investment advice.",
-    { ticker: z.string().max(60).optional().describe("Stock ticker, e.g. AAPL or MSFT. Provide this or cik."),
-      cik: z.string().max(10).optional().describe("SEC Central Index Key (CIK), up to 10 digits. Provide this or ticker.") }],
+    "As-reported fundamentals for one SEC filer from XBRL company facts. Use for quick fundamentals without a data vendor. For other SEC data search genesis402_catalog for \"sec\" and use genesis402_call. Give ticker or cik; one is required. Returns the latest annual and latest quarterly values for revenue, net income, operating income, total assets, liabilities, equity, cash, operating cash flow and diluted EPS, each with period end and filing date. Missing tags are marked unavailable, never estimated. Not investment advice.",
+    { ticker: z.string().max(60).optional().describe("Stock ticker, e.g. COIN or AAPL. Provide this or cik."),
+      cik: z.string().max(10).optional().describe("SEC Central Index Key, digits only, up to 10, e.g. 320193. Provide this or ticker.") }],
   ["genesis402_email_check", "email-domain-check",
-    "Email/domain deliverability and trust check: MX, mail provider, SPF, DMARC policy, disposable-domain flag and a trust score. Use to vet a signup email or an inbound sender's domain. Does not send any email.",
-    { email_or_domain: z.string().max(320).describe("A full email address (name@example.com) or a bare domain (example.com).") }],
+    "Deliverability and trust check for an email address or domain. Use to vet a signup email or an inbound sender. For the domain's registration age and registrar use genesis402_whois. Returns whether it can receive mail (MX), the hosting provider, SPF and DMARC records and policy, a disposable-domain flag and a 0-5 trust score. DNS-only: no SMTP probe, no email sent, the mailbox is never contacted.",
+    { email_or_domain: z.string().max(320).describe("A full email address (user@domain.com) or a bare domain (domain.com), without scheme or path.") }],
   ["genesis402_whois", "whois-domain",
-    "Domain registration facts via RDAP: registrar, age, expiry, status and nameservers. Young domains are a common fraud signal. Use to vet a website or sender domain.",
-    { domain: z.string().max(260).describe("The domain to look up, e.g. example.com (no scheme or path).") }],
+    "Registry data for one domain via RDAP. Young domains are a common phishing and fraud signal. Use to vet a website or counterparty domain. For mail setup (MX, SPF, DMARC) use genesis402_email_check; for page content use genesis402_web_extract. Returns registrar, registration and expiry dates, domain age in days, days to expiry, status codes, nameservers and DNSSEC state.",
+    { domain: z.string().max(260).describe("The domain to look up, e.g. example.com. No scheme (https://), path or port.") }],
   ["genesis402_extract_json", "text-extract-json",
-    "Extract the fields YOU name from any text as JSON. Fields not present in the text come back null, never invented. Use to turn emails, invoices or pages into structured data.",
-    { text: z.string().max(16000).describe("The source text to read, up to 16,000 characters."),
-      fields: z.record(z.string()).describe("The fields to extract: an object mapping each field name to a short description, e.g. { \"invoice_total\": \"total amount due in USD\", \"due_date\": \"ISO date\" }.") }],
+    "Pull the fields you define out of unstructured text as JSON. Anything the text does not state comes back null, never invented. Use to turn emails, invoices, contracts or listings into structured data. To get a web page's text first use genesis402_web_extract. The field descriptions steer the extraction, so include units and formats (e.g. \"ISO date\", \"number in USD\"). Returns one JSON object with exactly your keys, each holding the extracted value or null.",
+    { text: z.string().max(16000).describe("The source text to read, up to 16,000 characters. Trim longer input first."),
+      fields: z.record(z.string()).describe("Up to 30 fields: an object mapping each output key to a short description of what it should hold, including unit or format, e.g. { \"invoice_total\": \"total amount due in USD, number\", \"due_date\": \"ISO date\" }.") }],
   ["genesis402_web_extract", "web-extract",
-    "Fetch one public web page and return it as clean text with its title, headings and links. Use when you need a page's content rather than a summary. Pages behind a login or paywall are not accessible.",
-    { url: z.string().url().describe("Full http(s) URL of the public page to fetch."),
-      max_chars: z.number().int().min(500).max(60000).optional().describe("Maximum characters of text to return, 500 to 60,000.") }],
+    "Server-side fetch of one public web page, returned as clean readable text. Use when you need a page's actual content. To pull specific fields out of the result use genesis402_extract_json; for domain registration facts use genesis402_whois. Returns the title, meta description, readable text with markdown-style headings (capped at max_chars), up to 40 headings, up to 50 absolute links, the final URL after redirects and a SHA-256 of the fetched bytes. No JavaScript is executed, so client-rendered pages may come back thin. Private or internal addresses are refused, and pages behind a login or paywall are not accessible.",
+    { url: z.string().url().describe("Full URL of one public page, starting with http:// or https://."),
+      max_chars: z.number().int().min(500).max(60000).optional().describe("Maximum characters of page text to return, 500 to 60,000. Defaults to 20,000. Text past the cap is cut off."),
+      include_links: z.boolean().optional().describe("Include the page's links in the result. Defaults to true; set false for text only.") }],
   ["genesis402_prove", "prove",
-    "Issue a signed Ed25519 receipt that binds your SHA-256 digest (or text, which is hashed for you) and an optional claim to a settled payment and timestamp. Use as a cheap timestamped proof that you held a document or statement. Give sha256 or text. The receipt signature verifies offline; the receipt chain is not externally anchored on-chain.",
-    { sha256: z.string().regex(/^[0-9a-f]{64}$/).optional().describe("Lowercase hex SHA-256 digest (64 characters) of the content to prove. Provide this or text."),
-      text: z.string().max(16384).optional().describe("Raw text to hash and prove, up to 16,384 characters. Provide this or sha256."),
-      claim: z.string().max(512).optional().describe("Optional short statement bound into the receipt, e.g. 'Draft v2 of the purchase agreement'.") }]
+    "Issue one Ed25519-signed, hash-chained receipt recording that a SHA-256 digest existed at the time of payment. Use as a cheap timestamped proof that you held a document or statement. To look the receipt up later use genesis402_receipt (free). Send text (hashed by the rail, labelled OBSERVED) or a sha256 you computed yourself (labelled ATTESTED; keeps the content private), not both. Returns the receipt bound to your payment transaction, with its truth labels and limitations. It verifies offline with the open verifier at github.com/FTHTrading/402-truth. The rail stores the receipt, never your bytes. Not externally anchored on a public blockchain yet.",
+    { sha256: z.string().regex(/^[0-9a-f]{64}$/).optional().describe("Lowercase hex SHA-256 digest (64 characters) of the content to prove. Provide this or text, not both."),
+      text: z.string().max(16384).optional().describe("Raw UTF-8 text to hash and prove, up to 16 KiB (16,384 characters). Provide this or sha256, not both."),
+      claim: z.string().max(512).optional().describe("Optional short statement bound into the signed receipt, up to 512 characters, e.g. 'Draft v2 of the purchase agreement'.") }]
 ];
+const TITLES = {
+  genesis402_wallet_brief: "Wallet risk brief", genesis402_token_brief: "Token pre-trade brief",
+  genesis402_screen_sanctions: "Screen address against sanctions lists", genesis402_multi_chain_scan: "Scan address across 10 EVM chains",
+  genesis402_defi_yields: "Find DeFi yields", genesis402_sec_financials: "Get SEC company financials",
+  genesis402_email_check: "Check email or domain deliverability", genesis402_whois: "Look up domain registration (RDAP)",
+  genesis402_extract_json: "Extract JSON fields from text", genesis402_web_extract: "Extract text from a web page",
+  genesis402_prove: "Issue a signed proof receipt"
+};
+const PAY_FLOW = "Payment: call once without payment_signature to get the exact price quote (nothing is charged or signed), then call again with the signed payment to receive the result and settlement details.";
 const PAY_ARG = { payment_signature: z.string().max(8000).optional().describe("Optional. An x402 v2 payment you signed for this call's quote (the PAYMENT-SIGNATURE header value). Omit to get the price quote first; nothing is charged without it.") };
+
+const INSTRUCTIONS = [
+  "Genesis402 by UnyKorn: 360 pay-per-call data and tool endpoints for agents, settled per call in USDC on Base over x402 ($0.001 to $0.25 each). No accounts or API keys.",
+  "Pick a tool: use a dedicated genesis402_* tool when one fits (wallet or token risk, sanctions screening, multi-chain balances, DeFi yields, SEC financials, email and domain checks, web page text, JSON extraction, signed proofs). For anything else, search genesis402_catalog (free) by keyword, then call the endpoint by name with genesis402_call.",
+  "Payment: genesis402_catalog and genesis402_receipt are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call.",
+  "Parameters are validated for free before any quote, so fix invalid_input errors before asking for payment. Risk and sanctions outputs are heuristic signals from public data, not KYC, compliance determinations, legal or investment advice; say so when you relay them."
+].join("\n\n");
 
 export async function createServer({ payer = null, hosted = false } = {}) {
   await loadCatalog();
-  const server = new McpServer({ name: "genesis402", version: VERSION });
+  const server = new McpServer({ name: "genesis402", title: "Genesis402 by UnyKorn", version: VERSION }, { instructions: INSTRUCTIONS });
   const ro = { readOnlyHint: true, openWorldHint: true };
-  server.registerTool("genesis402_catalog", { title: "List endpoints and prices (free)", description: "Free, no payment. Lists every Genesis402 endpoint with its name, HTTP path, USD price, title and parameter schema, read from the live /.well-known/x402 manifest. Call this first to find the right endpoint name and parameters for genesis402_call. Returns the total count, the matches and the current payer mode.", inputSchema: { filter: z.string().max(60).optional().describe("Optional keyword to narrow the list, matched against endpoint name, title and tags, e.g. \"defi\", \"sec\", \"price\". Omit for all endpoints.") }, annotations: ro }, async ({ filter }) => {
+  server.registerTool("genesis402_catalog", { title: "List endpoints and prices (free)", description: "Free, no payment. Lists every Genesis402 endpoint with its name, HTTP path, USD price, title and parameter schema, read from the live /.well-known/x402 manifest. Call this first to find the right endpoint name and parameters for genesis402_call; the dedicated genesis402_* tools cover the most used endpoints directly. Read-only. Returns the total count, the matches and the current payer mode.", inputSchema: { filter: z.string().max(60).optional().describe("Optional keyword to narrow the list, matched against endpoint name, title and tags, e.g. \"defi\", \"sec\", \"price\". Omit for all endpoints.") }, annotations: ro }, async ({ filter }) => {
     await loadCatalog(); const f = (filter || "").toLowerCase();
     const rows = [...CATALOG.values()].filter((s) => !f || `${s.name} ${s.title || ""} ${(s.tags || []).join(" ")}`.toLowerCase().includes(f)).map((s) => ({ name: s.name, path: pathOf(s.name), price_usd: priceOf(s.name), title: s.title, parameters: s.parameters }));
     return text({ origin: ORIGIN, total_endpoints: CATALOG.size, matched: rows.length, payer_mode: payer ? `LIVE (cap $${payer.maxUsd})` : hosted ? "HOSTED: quote, or pay with your own signed payment_signature" : "QUOTE_ONLY", endpoints: rows.slice(0, 400) });
   });
-  server.registerTool("genesis402_receipt", { title: "Look up a receipt (free)", description: "Free, no payment. Fetches one paid-call receipt by id from the rail's public receipts feed, to confirm a call was paid and delivered. Returns the receipt as JSON, or an error with the HTTP status if the id is not found.", inputSchema: { receipt_id: z.string().min(4).max(80).describe("The receipt id returned with a paid call result.") }, annotations: ro }, async ({ receipt_id }) => {
+  server.registerTool("genesis402_receipt", { title: "Look up a receipt (free)", description: "Free, no payment. Fetches one paid-call receipt by id from the rail's public receipts feed, to confirm a call was paid and delivered. Use to verify a genesis402_prove receipt or any paid call later. Read-only and idempotent. Returns the receipt as JSON, or an error with the HTTP status if the id is not found.", inputSchema: { receipt_id: z.string().min(4).max(80).describe("The receipt id exactly as returned with a paid call result or by genesis402_prove, 4 to 80 characters.") }, annotations: ro }, async ({ receipt_id }) => {
     const r = await fetch(`${ORIGIN}/receipts/${encodeURIComponent(receipt_id)}`); return r.ok ? text(await r.json()) : fail({ status: r.status });
   });
   server.registerTool("genesis402_call", { title: "Call any endpoint", description: `Calls any of the ${CATALOG.size || 360} Genesis402 endpoints by name (DeFi, SEC filings, research, web/domain intel, AI text tools, multi-chain reads). Prices $0.001-$0.25 USDC on Base. Use for any endpoint without a dedicated tool; look up the name and parameters with genesis402_catalog first. Parameters are validated for free before any quote. Without payment_signature (or a local payer) it returns the exact price quote and signs nothing; with payment it returns the result plus the settlement details.`, inputSchema: { endpoint: z.string().min(2).max(64).describe("Endpoint name exactly as listed by genesis402_catalog, e.g. \"defi-yields\" or \"wallet-brief\" (a leading slash is ignored)."), params: z.record(z.any()).optional().describe("Parameters for that endpoint as an object, matching the parameter schema shown in genesis402_catalog. Omit if the endpoint takes none."), ...PAY_ARG }, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ endpoint, params, payment_signature }) => {
@@ -190,7 +208,7 @@ export async function createServer({ payer = null, hosted = false } = {}) {
   });
   for (const [tool, endpoint, blurb, schema] of NAMED) {
     if (CATALOG_OK && !CATALOG.has(endpoint)) continue;
-    server.registerTool(tool, { title: blurb.split(':')[0].slice(0, 60), description: `${priceTag(endpoint)}. ${blurb}`, inputSchema: { ...schema, ...PAY_ARG }, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, ...p }) => callPaid(endpoint, p, payer, payment_signature));
+    server.registerTool(tool, { title: TITLES[tool] || tool, description: `${priceTag(endpoint)}. ${blurb} ${PAY_FLOW}`, inputSchema: { ...schema, ...PAY_ARG }, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, ...p }) => callPaid(endpoint, p, payer, payment_signature));
   }
   return server;
 }

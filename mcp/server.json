@@ -9,20 +9,25 @@
     "subfolder": "mcp"
   },
   "websiteUrl": "https://twin.unykorn.org/catalog",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "genesis402-mcp",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
           "name": "GENESIS402_LIVE",
-          "description": "Set to 1 to allow paying. Unset = quote-only, nothing is signed.",
-          "isRequired": false
+          "description": "Set to 1 to allow paying. 0 or unset = quote-only, nothing is signed.",
+          "isRequired": false,
+          "default": "0",
+          "choices": [
+            "0",
+            "1"
+          ]
         },
         {
           "name": "GENESIS402_PAYER_KEY",
@@ -33,7 +38,9 @@
         {
           "name": "GENESIS402_MAX_USD",
           "description": "Refuse any quote above this many USD (default 0.25).",
-          "isRequired": false
+          "isRequired": false,
+          "default": "0.25",
+          "format": "number"
         }
       ]
     }
