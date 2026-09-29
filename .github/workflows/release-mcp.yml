@@ -57,7 +57,16 @@ jobs:
           if npm view "genesis402-mcp@${{ steps.ver.outputs.version }}" version >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
       - name: npm publish (OIDC, provenance)
         if: steps.npmcheck.outputs.exists == 'false'
-        run: npm publish --provenance --access public
+        run: |
+          set +e
+          npm publish --provenance --access public 2>&1 | tee publish.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            # npm can report a 404 on view while a just-published version is still processing; treat the
+            # resulting "cannot publish over previously published" as already-published, not as a failure.
+            if grep -q "cannot publish over the previously published versions" publish.log; then echo "version already on npm (still processing); continuing"; else exit "$rc"; fi
+          fi
       - name: npm publish skipped
         if: steps.npmcheck.outputs.exists == 'true'
         run: echo "genesis402-mcp@${{ steps.ver.outputs.version }} is already on npm; skipping"
