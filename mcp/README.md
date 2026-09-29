@@ -1,3 +1,17 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/FTHTrading/genesis402-agent-kit/main/assets/genesis402-banner.png" alt="Genesis402 by UnyKorn: pay-per-call APIs for AI agents" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/genesis402-mcp"><img src="https://img.shields.io/npm/v/genesis402-mcp?color=c4560a&label=npm" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/genesis402-mcp"><img src="https://img.shields.io/npm/dw/genesis402-mcp?color=6b7280&label=downloads" alt="npm weekly downloads"></a>
+  <a href="https://github.com/FTHTrading/genesis402-agent-kit/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/FTHTrading/genesis402-agent-kit/ci.yml?branch=main&label=CI" alt="CI"></a>
+  <a href="https://github.com/FTHTrading/genesis402-agent-kit/actions/workflows/release-mcp.yml"><img src="https://img.shields.io/badge/provenance-SLSA%20v1%20via%20GitHub%20Actions-1fbf75" alt="SLSA provenance"></a>
+  <a href="https://registry.modelcontextprotocol.io/v0/servers?search=genesis402"><img src="https://img.shields.io/badge/MCP%20Registry-io.github.FTHTrading%2Fgenesis402--mcp-0b0d12" alt="MCP Registry"></a>
+  <a href="https://glama.ai/mcp/connectors/io.github.FTHTrading/genesis402-mcp"><img src="https://img.shields.io/badge/Glama-connector-0b0d12" alt="Glama"></a>
+  <a href="https://github.com/FTHTrading/genesis402-agent-kit/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-6b7280" alt="MIT"></a>
+</p>
+
 # genesis402-mcp
 
 Genesis402: pay-per-call APIs for AI agents over x402.
@@ -127,6 +141,6 @@ node smoke.mjs      # read-only checks against the live rail; never pays
 node boot-test.mjs  # boots over stdio and lists the tools a client would see
 ```
 
-UnyKorn LLC (Wyoming). MIT licensed.
+UnyKorn LLC (Wyoming). MIT licensed. Changes: [CHANGELOG](https://github.com/FTHTrading/genesis402-agent-kit/blob/main/mcp/CHANGELOG.md).
 Discovery: [`/.well-known/x402`](https://twin.unykorn.org/.well-known/x402) ·
 Receipts: [`/receipts`](https://twin.unykorn.org/receipts)

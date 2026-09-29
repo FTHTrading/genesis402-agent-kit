@@ -15,7 +15,7 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.4";
+export const VERSION = "0.3.5";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";

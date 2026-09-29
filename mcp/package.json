@@ -1,36 +1,7 @@
 {
   "name": "genesis402-mcp",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Genesis402 by UnyKorn: 360 pay-per-call APIs for AI agents over x402 and MPP (USDC on Base). DeFi and market data, multi-chain reads, wallet and token risk signals, SEC financials, web and domain intel, AI text tools. Quote-only by default; hosted at https://twin.unykorn.org/mcp.",
-  "type": "module",
-  "bin": {
-    "genesis402-mcp": "index.mjs",
-    "genesis402-mcp-http": "http.mjs"
-  },
-  "main": "index.mjs",
-  "engines": {
-    "node": ">=20"
-  },
-  "license": "MIT",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.20.0",
-    "@x402/evm": "^2.26.0",
-    "@x402/fetch": "^2.26.0",
-    "viem": "^2.40.0",
-    "zod": "^3.25.0"
-  },
-  "files": [
-    "README.md",
-    "core.mjs",
-    "http.mjs",
-    "index.mjs"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/FTHTrading/genesis402-agent-kit.git",
-    "directory": "mcp"
-  },
-  "homepage": "https://github.com/FTHTrading/genesis402-agent-kit#readme",
   "keywords": [
     "mcp",
     "x402",
@@ -56,9 +27,59 @@
     "streamable-http",
     "risk-signals"
   ],
-  "mcpName": "io.github.FTHTrading/genesis402-mcp",
+  "homepage": "https://genesis402.com",
+  "bugs": {
+    "url": "https://github.com/FTHTrading/genesis402-agent-kit/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FTHTrading/genesis402-agent-kit.git",
+    "directory": "mcp"
+  },
+  "license": "MIT",
   "author": "UnyKorn LLC",
+  "type": "module",
+  "main": "index.mjs",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./core.mjs"
+    },
+    "./core": {
+      "types": "./index.d.ts",
+      "import": "./core.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "genesis402-mcp": "index.mjs",
+    "genesis402-mcp-http": "http.mjs"
+  },
+  "files": [
+    "README.md",
+    "CHANGELOG.md",
+    "index.d.ts",
+    "core.mjs",
+    "http.mjs",
+    "index.mjs"
+  ],
+  "sideEffects": [
+    "./index.mjs",
+    "./http.mjs"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "node --check core.mjs && node --check http.mjs && node --check index.mjs && node boot-test.mjs && node smoke.mjs"
-  }
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "@x402/evm": "^2.26.0",
+    "@x402/fetch": "^2.26.0",
+    "viem": "^2.40.0",
+    "zod": "^3.25.0"
+  },
+  "mcpName": "io.github.FTHTrading/genesis402-mcp"
 }
