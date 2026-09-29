@@ -17,6 +17,7 @@ jobs:
   publish:
     name: npm publish genesis402-mcp
     runs-on: ubuntu-latest
+    environment: release-mcp   # must match the environment on the npm Trusted Publisher entry
     defaults:
       run:
         working-directory: mcp
