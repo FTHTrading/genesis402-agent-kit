@@ -25,6 +25,9 @@ if (process.env.LIVE !== "1") { console.log("Quote only. Set LIVE=1 plus PAYER_K
 let res;
 if (process.env.RAIL === "xrpl") {
   // 2a. XRPL is pay-first: send the payment on-chain, then present the validated tx hash.
+  // Cap the XRP spend too (default 0.1 XRP = 100000 drops); the rail quotes a flat 0.05 XRP.
+  const MAX_DROPS = BigInt(process.env.MAX_XRP_DROPS || "100000");
+  if (BigInt(xrp.amount) > MAX_DROPS) throw new Error(`XRPL price ${xrp.amount} drops above cap ${MAX_DROPS}`);
   const xrpl = await import("xrpl");
   const client = new xrpl.Client("wss://xrplcluster.com");
   await client.connect();
@@ -39,7 +42,7 @@ if (process.env.RAIL === "xrpl") {
   // 2b. Base: sign an EIP-3009 transferWithAuthorization; the standard x402 client builds PAYMENT-SIGNATURE and retries.
   if (BigInt(base.amount) > MAX_ATOMIC) throw new Error(`price ${base.amount} above cap ${MAX_ATOMIC}`);
   const account = privateKeyToAccount(process.env.PAYER_KEY);
-  const paidFetch = wrapFetchWithPaymentFromConfig(fetch, { schemes: [{ network: "eip155:8453", client: new ExactEvmScheme(account) }] });
+  const paidFetch = wrapFetchWithPaymentFromConfig(fetch, { schemes: [{ network: "eip155:8453", client: new ExactEvmScheme(account) }], spendControls: { maxAmountPerPayment: `$${Number(MAX_ATOMIC) / 1e6}` } });
   res = await paidFetch(url, init);
   const pr = res.headers.get("payment-response");
   if (pr) console.log("settlement:", decodePaymentResponseHeader(pr));

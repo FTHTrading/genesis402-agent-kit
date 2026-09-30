@@ -38,6 +38,10 @@ async def main() -> None:
         from xrpl.utils import xrp_to_drops
         from xrpl.wallet import Wallet
 
+        # Cap the XRP spend (default 0.1 XRP = 100000 drops); the rail quotes a flat 0.05 XRP.
+        max_drops = int(os.getenv("MAX_XRP_DROPS", "100000"))
+        if int(xrp["amount"]) > max_drops:
+            raise SystemExit(f"XRPL price {xrp['amount']} drops above cap {max_drops}")
         wallet = Wallet.from_seed(os.environ["XRPL_SEED"])
         async with AsyncWebsocketClient("wss://xrplcluster.com") as client:
             # memo = sha256(nonce) binds the payment to this challenge

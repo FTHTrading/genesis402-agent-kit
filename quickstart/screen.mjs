@@ -13,7 +13,8 @@ import { privateKeyToAccount } from "viem/accounts";
 
 const ORIGIN = process.env.ORIGIN || "https://twin.unykorn.org";
 const BASE = "eip155:8453";
-const MAX_USD = Number(process.env.MAX_USD || "0.01"); // refuse any quote above this
+const MAX_USD_RAW = Number(process.env.MAX_USD ?? "0.01"); // refuse any quote above this
+const MAX_USD = Number.isFinite(MAX_USD_RAW) && MAX_USD_RAW > 0 ? MAX_USD_RAW : 0.01;
 
 const address = process.argv[2];
 if (!/^0x[0-9a-fA-F]{40}$/.test(address || "")) {
@@ -40,7 +41,8 @@ if (usd > MAX_USD) { console.error(`quote $${usd} is above MAX_USD $${MAX_USD}; 
 
 // 3. Paid: sign an EIP-3009 USDC authorization; the x402 client retries with PAYMENT-SIGNATURE.
 const account = privateKeyToAccount(process.env.PAYER_KEY);
-const paidFetch = wrapFetchWithPaymentFromConfig(fetch, { schemes: [{ network: BASE, client: new ExactEvmScheme(account) }] });
+// spendControls re-checks the cap when signing, so a price that changed after the quote is refused.
+const paidFetch = wrapFetchWithPaymentFromConfig(fetch, { schemes: [{ network: BASE, client: new ExactEvmScheme(account) }], spendControls: { maxAmountPerPayment: `$${MAX_USD}` } });
 const res = await paidFetch(url, init);
 const pr = res.headers.get("payment-response");
 if (pr) console.log("settlement:", decodePaymentResponseHeader(pr));
