@@ -10,6 +10,7 @@
   <a href="https://mcpservers.org/servers/fthtrading/genesis402-agent-kit"><img src="https://mcpservers.org/badge.svg" alt="Listed on mcpservers.org"></a>
   <a href="https://8004scan.io/agents/base/95721"><img src="https://img.shields.io/badge/ERC--8004-agent%2095721%20on%20Base-9a6a1f" alt="ERC-8004 agent 95721"></a>
   <a href="https://twin.unykorn.org/status"><img src="https://img.shields.io/badge/status-live-1fbf75" alt="Live status"></a>
+  <a href="https://discord.gg/qqH42PswDd"><img src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <img src="https://img.shields.io/badge/license-MIT-6b7280" alt="MIT">
 </p>
 
@@ -30,6 +31,8 @@
 ---
 
 > **Guide:** [Screen a wallet before your agent moves money](docs/guides/screen-a-wallet.md) — $0.008 a check, three ways to call it.
+>
+> **Community:** [join the UnyKorn Discord](https://discord.gg/qqH42PswDd). Run a free counterparty report with `/check`, watch paid calls settle live in `#rail-feed`, and ask questions in `#help`.
 
 ## Connect in 30 seconds
 
