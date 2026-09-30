@@ -1,6 +1,6 @@
 {
   "name": "genesis402-mcp",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Genesis402 by UnyKorn: 360 pay-per-call APIs for AI agents over x402 and MPP (USDC on Base). DeFi and market data, multi-chain reads, wallet and token risk signals, SEC financials, web and domain intel, AI text tools. Quote-only by default; hosted at https://twin.unykorn.org/mcp.",
   "keywords": [
     "mcp",

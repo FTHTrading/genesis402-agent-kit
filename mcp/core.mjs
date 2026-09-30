@@ -15,7 +15,7 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.6";
+export const VERSION = "0.3.7";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -110,7 +110,9 @@ async function callPaid(name, params, payer, paymentSignature) {
   }
   if (!quote) return fail({ error: "no_base_usdc_lane" });
   if (quote.usd > payer.maxUsd) return fail({ error: "price_above_cap", quote, cap_usd: payer.maxUsd });
-  const res = await payer.paidFetch(url, init);
+  let res;
+  try { res = await payer.paidFetch(url, init); }
+  catch (e) { return fail({ error: "payment_not_made", message: String(e?.message || e).slice(0, 300), quote, cap_usd: payer.maxUsd }); }
   const body = await res.json().catch(() => null);
   let settlement = null; const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
   if (pr) { try { settlement = decodePaymentResponseHeader(pr); } catch {} }
@@ -121,7 +123,16 @@ export function localPayerFromEnv() {
   const key = process.env.GENESIS402_PAYER_KEY || "";
   if (process.env.GENESIS402_LIVE !== "1" || !key) return null;
   const account = privateKeyToAccount(key.startsWith("0x") ? key : `0x${key}`);
-  return { paidFetch: wrapFetchWithPaymentFromConfig(fetch, { schemes: [{ network: BASE, client: new ExactEvmScheme(account) }] }), maxUsd: Number(process.env.GENESIS402_MAX_USD || "0.25") };
+  // The cap is enforced twice: against the quote before paying, and by the x402 client's
+  // spendControls when it signs, so a price that changes between quote and payment is refused.
+  // GENESIS402_MAX_USD defaults to $0.25. A non-numeric, zero or negative value never disables the cap:
+  // the server stays quote-only and signs nothing.
+  const maxUsd = Number(process.env.GENESIS402_MAX_USD ?? "0.25");
+  if (!Number.isFinite(maxUsd) || maxUsd <= 0) {
+    process.stderr.write(`[genesis402] GENESIS402_MAX_USD="${process.env.GENESIS402_MAX_USD}" is not a positive number; staying quote-only\n`);
+    return null;
+  }
+  return { paidFetch: wrapFetchWithPaymentFromConfig(fetch, { schemes: [{ network: BASE, client: new ExactEvmScheme(account) }], spendControls: { maxAmountPerPayment: `$${maxUsd}` } }), maxUsd };
 }
 
 // ---------------------------------------------------------------------------

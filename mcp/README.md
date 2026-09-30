@@ -136,7 +136,7 @@ One payment buys exactly one execution; re-presenting it returns 409.
 | `GENESIS402_ORIGIN` | `https://twin.unykorn.org` | Rail origin. |
 | `GENESIS402_LIVE` | unset | `1` enables payment. Anything else is quote-only. |
 | `GENESIS402_PAYER_KEY` | unset | Private key that funds calls. Required for live mode. |
-| `GENESIS402_MAX_USD` | `0.25` | Hard cap per call. Quotes above this are refused. |
+| `GENESIS402_MAX_USD` | `0.25` | Hard cap per call, checked against the quote and again when signing. Quotes above it are refused; a zero, negative or non-numeric value keeps the server quote-only. |
 
 ## Testing
 
