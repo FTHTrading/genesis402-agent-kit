@@ -22,19 +22,23 @@ jobs:
     name: npm + MCP Registry
     runs-on: ubuntu-latest
     environment: release-mcp   # matches the npm Trusted Publisher entry
+    # Publish only from a v* tag or main, never from another branch via workflow_dispatch.
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
     defaults:
       run:
         working-directory: mcp
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
           cache-dependency-path: mcp/package-lock.json
-      - name: npm >= 11.5.1 (trusted publishing needs it)
-        run: npm install -g npm@latest && npm --version
+      - name: npm >= 11.5.1 (trusted publishing needs it), pinned
+        run: npm install -g npm@11.20.0 && npm --version
       - run: npm ci
       - run: npm test
         env:
@@ -79,9 +83,14 @@ jobs:
           done
           echo "npm did not serve ${{ steps.ver.outputs.version }} within 10 minutes"; exit 1
 
-      - name: install mcp-publisher
+      - name: install mcp-publisher (pinned version, checksum-verified)
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
         run: |
-          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          curl -fsSL -o mcp-publisher.tar.gz "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
           ./mcp-publisher --version
       - name: MCP Registry login (github-oidc) + publish
         run: |
