@@ -29,6 +29,8 @@
 
 ---
 
+> **Guide:** [Screen a wallet before your agent moves money](docs/guides/screen-a-wallet.md) — $0.008 a check, three ways to call it.
+
 ## Connect in 30 seconds
 
 ### Hosted MCP (nothing to install)
@@ -145,7 +147,7 @@ x402 v2 `exact` scheme and MPP `usdc`/`charge` (EIP-3009 authorization), on USDC
 ## Repo layout
 
 - `mcp/` — the MCP server (`npx genesis402-mcp`; `genesis402-mcp-http` for hosted mode), `server.json` for the MCP Registry, `smoke.mjs` (13 read-only checks against the live rail).
-- `quickstart/` — Node and Python payers for Base, XRPL and Stellar.
+- `quickstart/` — Node and Python payers for Base, XRPL and Stellar; `screen.mjs` for the wallet-screening guide.
 - `assets/` — brand banner and icon.
 
 ---
