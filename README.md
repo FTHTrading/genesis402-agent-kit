@@ -105,6 +105,10 @@ Both dialects quote the same price to the same address in the same token. MPP di
 | `genesis402_extract_json` | Extract the fields you name from any text; missing fields are null | Paid |
 | `genesis402_web_extract` | Any public page as clean text, title, headings and links | Paid |
 | `genesis402_prove` | Signed Ed25519 receipt binding your digest to a settled payment | Paid |
+| `genesis402_summarize` | Summarize text as a paragraph, bullets or TL;DR within a word limit | Paid |
+| `genesis402_answer_from_text` | Answer one question from your document, with a verified supporting quote | Paid |
+| `genesis402_translate` | Translate text into any major language, preserving names, numbers and formatting | Paid |
+| `genesis402_paper_search` | Scholarly paper search (OpenAlex) with citation counts and open-access links | Paid |
 
 Live prices come from the rail's manifest; `genesis402_catalog` shows them. Every paid tool returns the receipt id and evidence hash with the result.
 
