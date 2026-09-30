@@ -15,7 +15,7 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.5";
+export const VERSION = "0.3.6";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -211,7 +211,27 @@ const NAMED = [
     "Issue one Ed25519-signed, hash-chained receipt recording that a SHA-256 digest existed at the time of payment. Use as a cheap timestamped proof that you held a document or statement. To look the receipt up later use genesis402_receipt (free). Send text (hashed by the rail, labelled OBSERVED) or a sha256 you computed yourself (labelled ATTESTED; keeps the content private), not both. Returns the receipt bound to your payment transaction, with its truth labels and limitations. It verifies offline with the open verifier at github.com/FTHTrading/402-truth. The rail stores the receipt, never your bytes. Not externally anchored on a public blockchain yet.",
     { sha256: z.string().regex(/^[0-9a-f]{64}$/).optional().describe("Lowercase hex SHA-256 digest (64 characters) of the content to prove. Provide this or text, not both."),
       text: z.string().max(16384).optional().describe("Raw UTF-8 text to hash and prove, up to 16 KiB (16,384 characters). Provide this or sha256, not both."),
-      claim: z.string().max(512).optional().describe("Optional short statement bound into the signed receipt, up to 512 characters, e.g. 'Draft v2 of the purchase agreement'.") }]
+      claim: z.string().max(512).optional().describe("Optional short statement bound into the signed receipt, up to 512 characters, e.g. 'Draft v2 of the purchase agreement'.") }],
+  ["genesis402_summarize", "text-summarize",
+    "Summarize long text you already have (a report, transcript, filing, thread) as a paragraph, bullet list or one-line TL;DR, within a word limit, on UnyKorn's own GPU. Use when the text is in hand; to summarize a live web page by URL instead, call the summarize-url endpoint through genesis402_call. To answer one specific question from the text use genesis402_answer_from_text. Returns the summary in the requested style as JSON. Works only from the supplied text.",
+    { text: z.string().min(1).max(24000).describe("The text to summarize, up to 24,000 characters. Trim longer input first."),
+      style: z.enum(["paragraph", "bullets", "tldr"]).optional().describe("Output shape: 'paragraph' (default), 'bullets' for a bullet list, or 'tldr' for one or two sentences."),
+      max_words: z.number().int().min(20).max(400).optional().describe("Upper bound on summary length in words, 20 to 400. Defaults to 120.") }],
+  ["genesis402_answer_from_text", "text-qa",
+    "Answer one question strictly from a document you supply, and return the verbatim quote that supports the answer. Use for contract, policy, filing or email questions where the answer must be traceable to the source. For an overview rather than one answer use genesis402_summarize; to pull many named fields at once use genesis402_extract_json. Returns the answer and a supporting quote that the rail verifies appears in the text.",
+    { text: z.string().min(1).max(24000).describe("The source document to answer from, up to 24,000 characters."),
+      question: z.string().min(3).max(500).describe("One question about the text, up to 500 characters, e.g. 'What is the termination notice period?'.") }],
+  ["genesis402_translate", "text-translate",
+    "Translate text into any major language while preserving names, numbers and formatting. Use for customer messages, documents or UI strings. To only identify a text's language call the language-detect endpoint through genesis402_call. Returns the translation as JSON.",
+    { text: z.string().min(1).max(8000).describe("The text to translate, up to 8,000 characters."),
+      to: z.string().min(2).max(40).describe("Target language as a name or ISO 639-1 code, e.g. 'Spanish' or 'es'."),
+      from: z.string().min(2).max(40).optional().describe("Source language as a name or ISO code. Omit to auto-detect.") }],
+  ["genesis402_paper_search", "openalex-search",
+    "Search scholarly literature in OpenAlex and get works with citation counts and open-access links. Use to find research, prior art or the most-cited work on a topic. For preprints by recency search arXiv (arxiv-search) and for one known DOI use crossref-doi, both through genesis402_call. Returns up to limit works, ranked by relevance or by citations.",
+    { q: z.string().min(2).max(300).describe("Search terms, e.g. 'zero-knowledge proof rollups' or an exact paper title."),
+      from_year: z.number().int().min(1900).max(2100).optional().describe("Only works published in or after this year, e.g. 2020. Omit for all years."),
+      sort: z.enum(["relevance", "cited"]).optional().describe("'relevance' (default) or 'cited' for most-cited first."),
+      limit: z.number().int().min(1).max(50).optional().describe("How many works to return, 1 to 50. Defaults to 10.") }]
 ];
 const TITLES = {
   genesis402_wallet_brief: "Wallet risk brief", genesis402_token_brief: "Token pre-trade brief",
@@ -219,14 +239,16 @@ const TITLES = {
   genesis402_defi_yields: "Find DeFi yields", genesis402_sec_financials: "Get SEC company financials",
   genesis402_email_check: "Check email or domain deliverability", genesis402_whois: "Look up domain registration (RDAP)",
   genesis402_extract_json: "Extract JSON fields from text", genesis402_web_extract: "Extract text from a web page",
-  genesis402_prove: "Issue a signed proof receipt"
+  genesis402_prove: "Issue a signed proof receipt",
+  genesis402_summarize: "Summarize text", genesis402_answer_from_text: "Answer a question from a document",
+  genesis402_translate: "Translate text", genesis402_paper_search: "Search scholarly papers"
 };
 const PAY_FLOW = "Payment: call once without payment_signature to get the exact price quote (nothing is charged or signed), then call again with the signed payment to receive the result and settlement details.";
 const PAY_ARG = { payment_signature: z.string().max(8000).optional().describe("Optional. An x402 v2 payment you signed for this call's quote (the PAYMENT-SIGNATURE header value). Omit to get the price quote first; nothing is charged without it.") };
 
 const INSTRUCTIONS = [
   "Genesis402 by UnyKorn: 360 pay-per-call data and tool endpoints for agents, settled per call in USDC on Base over x402 ($0.001 to $0.25 each). No accounts or API keys.",
-  "Pick a tool: use a dedicated genesis402_* tool when one fits (wallet or token risk, sanctions screening, multi-chain balances, DeFi yields, SEC financials, email and domain checks, web page text, JSON extraction, signed proofs). For anything else, search genesis402_catalog (free) by keyword, then call the endpoint by name with genesis402_call.",
+  "Pick a tool: use a dedicated genesis402_* tool when one fits (wallet or token risk, sanctions screening, multi-chain balances, DeFi yields, SEC financials, email and domain checks, web page text, JSON extraction, summaries, answers from a document, translation, scholarly paper search, signed proofs). For anything else, search genesis402_catalog (free) by keyword, then call the endpoint by name with genesis402_call.",
   "Payment: genesis402_catalog and genesis402_receipt are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call.",
   "Parameters are validated for free before any quote, so fix invalid_input errors before asking for payment. Risk and sanctions outputs are heuristic signals from public data, not KYC, compliance determinations, legal or investment advice; say so when you relay them."
 ].join("\n\n");
@@ -235,12 +257,12 @@ export async function createServer({ payer = null, hosted = false } = {}) {
   await loadCatalog();
   const server = new McpServer({ name: "genesis402", title: "Genesis402 by UnyKorn", version: VERSION }, { instructions: INSTRUCTIONS });
   const ro = { readOnlyHint: true, openWorldHint: true };
-  server.registerTool("genesis402_catalog", { title: "List endpoints and prices (free)", description: "Free, no payment. Lists every Genesis402 endpoint with its name, HTTP path, USD price, title and parameter schema, read from the live /.well-known/x402 manifest. Call this first to find the right endpoint name and parameters for genesis402_call; the dedicated genesis402_* tools cover the most used endpoints directly. Read-only. Returns the total count, the matches and the current payer mode.", inputSchema: { filter: z.string().max(60).optional().describe("Optional keyword to narrow the list, matched against endpoint name, title and tags, e.g. \"defi\", \"sec\", \"price\". Omit for all endpoints.") }, outputSchema: CATALOG_OUTPUT, annotations: ro }, async ({ filter }) => {
+  server.registerTool("genesis402_catalog", { title: "List endpoints and prices (free)", description: "Free, no payment, read-only. Lists Genesis402 endpoints with name, HTTP path, USD price, title and parameter schema, read from the rail's live /.well-known/x402 manifest (refreshed every 10 minutes). Use it to find an endpoint that has no dedicated genesis402_* tool, then pass its exact name and parameters to genesis402_call. Filter by keyword to keep the list short (e.g. \"defi\", \"sec\", \"wiki\"); with no filter it returns every endpoint, up to 400. Returns the rail origin, total endpoint count, number matched, the current payer mode (QUOTE_ONLY, HOSTED or LIVE with its cap) and the matching endpoints.", inputSchema: { filter: z.string().max(60).optional().describe("Optional keyword to narrow the list, matched against endpoint name, title and tags, e.g. \"defi\", \"sec\", \"price\". Omit for all endpoints.") }, outputSchema: CATALOG_OUTPUT, annotations: ro }, async ({ filter }) => {
     await loadCatalog(); const f = (filter || "").toLowerCase();
     const rows = [...CATALOG.values()].filter((s) => !f || `${s.name} ${s.title || ""} ${(s.tags || []).join(" ")}`.toLowerCase().includes(f)).map((s) => ({ name: s.name, path: pathOf(s.name), price_usd: priceOf(s.name), title: s.title, parameters: s.parameters }));
     return ok({ origin: ORIGIN, total_endpoints: CATALOG.size, matched: rows.length, payer_mode: payer ? `LIVE (cap $${payer.maxUsd})` : hosted ? "HOSTED: quote, or pay with your own signed payment_signature" : "QUOTE_ONLY", endpoints: rows.slice(0, 400) });
   });
-  server.registerTool("genesis402_receipt", { title: "Look up a receipt (free)", description: "Free, no payment. Fetches one paid-call receipt by id from the rail's public receipts feed, to confirm a call was paid and delivered. Use to verify a genesis402_prove receipt or any paid call later. Read-only and idempotent. Returns the receipt as JSON, or an error with the HTTP status if the id is not found.", inputSchema: { receipt_id: z.string().min(4).max(80).describe("The receipt id exactly as returned with a paid call result or by genesis402_prove, 4 to 80 characters.") }, outputSchema: RECEIPT_OUTPUT, annotations: ro }, async ({ receipt_id }) => {
+  server.registerTool("genesis402_receipt", { title: "Look up a receipt (free)", description: "Free, no payment, read-only and idempotent. Fetches one receipt by id from the rail's public receipts feed (twin.unykorn.org/receipts) to confirm that a paid call was settled and delivered. Use after any paid call, or to check a genesis402_prove receipt, using the receipt id returned with that result. It does not list or search receipts; you need the exact id. Returns the receipt exactly as published: the task called, amount in USD, payment rail, settlement transaction hash, settler, payer and timestamp. An unknown id returns an error with HTTP status 404; nothing is charged either way.", inputSchema: { receipt_id: z.string().min(4).max(80).describe("The receipt id exactly as returned with a paid call result or by genesis402_prove, 4 to 80 characters.") }, outputSchema: RECEIPT_OUTPUT, annotations: ro }, async ({ receipt_id }) => {
     const r = await fetch(`${ORIGIN}/receipts/${encodeURIComponent(receipt_id)}`);
     if (!r.ok) return fail({ status: r.status, receipt_id });
     const receipt = await r.json().catch(() => null);

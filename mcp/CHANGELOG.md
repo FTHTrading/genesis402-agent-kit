@@ -2,6 +2,11 @@
 
 All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and signed on GitHub Actions (SLSA provenance) and published to npm and the MCP Registry by `.github/workflows/release-mcp.yml`.
 
+## 0.3.6 - 2026-09-30
+- Four dedicated tools for the research and AI text endpoints: `genesis402_summarize` (text-summarize), `genesis402_answer_from_text` (text-qa), `genesis402_translate` (text-translate), `genesis402_paper_search` (openalex-search). 18 tools total.
+- Sharper `genesis402_catalog` and `genesis402_receipt` descriptions: when to use, what they do not do, exact return shape.
+- Smoke test: prepaid credit packs (`/credits/5`, `/credits/25`) are excluded from the per-call price band check, which had turned CI red once they went live on the rail.
+
 ## 0.3.5 - 2026-09-29
 - Type declarations (`index.d.ts`) for `createServer`, `localPayerFromEnv`, `loadCatalog`, `catalogSize`, `VERSION`.
 - `exports` map: `import { createServer } from "genesis402-mcp"` resolves to the library (`core.mjs`); the CLI entry is unchanged (`npx genesis402-mcp`).

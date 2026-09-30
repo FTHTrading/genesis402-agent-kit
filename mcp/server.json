@@ -9,12 +9,12 @@
     "subfolder": "mcp"
   },
   "websiteUrl": "https://twin.unykorn.org/catalog",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "genesis402-mcp",
-      "version": "0.3.5",
+      "version": "0.3.6",
       "transport": {
         "type": "stdio"
       },

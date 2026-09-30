@@ -37,7 +37,7 @@ The rail sets the price. This client never does; it only decides whether to acce
 ## Hosted endpoint (no install)
 
 Connect any MCP client that supports streamable HTTP to **https://twin.unykorn.org/mcp**. It
-exposes the same 14 tools over all 360 endpoints.
+exposes the same 18 tools over all 360 endpoints.
 
 - Hosted MCP endpoint at https://twin.unykorn.org/mcp: it holds no keys. A paid tool returns the
   exact x402 quote.
@@ -104,6 +104,10 @@ client advertising a stale number.
 | `genesis402_extract_json` | paid | Extract your fields from any text as JSON; missing fields are null, never invented. |
 | `genesis402_web_extract` | paid | Any public web page as clean text, title, headings and links. |
 | `genesis402_prove` | paid | A signed Ed25519 receipt binding your SHA-256 digest (or text) to a settled payment. |
+| `genesis402_summarize` | paid | Summary of text you supply: paragraph, bullets or TL;DR, 20 to 400 words. |
+| `genesis402_answer_from_text` | paid | One answer from your document plus a supporting quote the rail verifies is in the text. |
+| `genesis402_translate` | paid | Translation into any major language; names, numbers and formatting preserved. |
+| `genesis402_paper_search` | paid | OpenAlex scholarly search, by relevance or most-cited, with open-access links. |
 
 ## How a paid call works
 
