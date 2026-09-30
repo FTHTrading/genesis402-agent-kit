@@ -138,6 +138,10 @@ One payment buys exactly one execution; re-presenting it returns 409.
 | `GENESIS402_PAYER_KEY` | unset | Private key that funds calls. Required for live mode. |
 | `GENESIS402_MAX_USD` | `0.25` | Hard cap per call, checked against the quote and again when signing. Quotes above it are refused; a zero, negative or non-numeric value keeps the server quote-only. |
 
+## Community
+
+Questions, feedback and a free counterparty report (`/check`): [UnyKorn Discord](https://discord.gg/qqH42PswDd).
+
 ## Testing
 
 ```bash
