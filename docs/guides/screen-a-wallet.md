@@ -80,3 +80,5 @@ Sign the challenge with any x402 v2 client (Coinbase AgentKit/CDP wallets, `@x40
 | Where is this address active? | `evm-multi-chain-scan` | $0.008 |
 
 All 360 endpoints, with schemas and live prices: [twin.unykorn.org/catalog](https://twin.unykorn.org/catalog). Every paid call is on the public [receipts feed](https://twin.unykorn.org/receipts); a paid call that is not delivered is re-delivered free on retry. Live health: [twin.unykorn.org/status](https://twin.unykorn.org/status).
+
+Stuck, or want to see it run first? Try `/screen` and `/check` free in the [UnyKorn Discord](https://discord.gg/qqH42PswDd).
