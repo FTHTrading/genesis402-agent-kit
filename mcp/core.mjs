@@ -15,7 +15,7 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.7";
+export const VERSION = "0.3.8";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -177,6 +177,18 @@ const RECEIPT_OUTPUT = {
 const EVM_ADDR = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 const CHAIN = z.string().max(24).optional().describe("Optional EVM chain name to focus on, e.g. ethereum or base. Omit to cover all supported chains.");
 const NAMED = [
+  ["genesis402_counterparty_report", "counterparty-report",
+    "Check one company before you deal with it. Resolves the company in the GLEIF register (name or 20-character LEI), follows its registered direct and ultimate parent, and screens every name in that group against the UN, US OFAC SDN, EU and UK sanctions lists. Returns one verdict (clear, review or stop) with every reason sourced, the registry record, the group screened, the list versions used, an Ed25519-signed receipt, a private link to a branded PDF (7 days) and a public verify page. A vague name (e.g. a bare brand) returns review and names the entity it assumed. Screening and registry signals only: not KYC, not a compliance determination, not legal advice.",
+    { query: z.string().min(3).max(200).describe("Company legal name (3 to 200 characters) or its 20-character LEI. The exact legal name or LEI gives the most precise result."),
+      type: z.enum(["individual", "entity"]).optional().describe("Optional. Used only when no registry record is found and the name is screened as given.") }],
+  ["genesis402_sanctions_name_screen", "sanctions-name-screen",
+    "Screen one person or organisation name against the UN, US OFAC SDN, EU and UK consolidated sanctions lists, including aliases and transliterations. Returns match, possible match or no match, each hit with list, list id, matched name and score, and the published date and SHA-256 of every list version used. For a company and its parents in one call use genesis402_counterparty_report; for a wallet address use genesis402_screen_sanctions. Screening signal only: not KYC, not a compliance determination, not legal advice.",
+    { name: z.string().min(3).max(200).describe("The person or organisation name to screen, 3 to 200 characters."),
+      type: z.enum(["individual", "entity", "vessel", "aircraft"]).optional().describe("Optional. Restricts matching to that kind of list entry."),
+      dob_year: z.number().int().min(1900).max(2100).optional().describe("Optional four-digit birth year, used to flag hits with an inconsistent date of birth.") }],
+  ["genesis402_company_lookup", "entity-lookup",
+    "Look up one company worldwide in the official registers: GLEIF (Legal Entity Identifiers, every country) and US SEC EDGAR. By LEI: legal name, status, jurisdiction, addresses, registration authority, renewal dates and its registered direct and ultimate parent. By name: ranked matches, live registrations first, with legal forms understood across languages and names in their own script. By SEC CIK: filer profile, tickers and latest filings. Registry data only: not KYC, not a compliance determination, not legal advice.",
+    { query: z.string().min(3).max(200).describe("Company name (3 to 200 characters), 20-character LEI, or SEC CIK.") }],
   ["genesis402_wallet_brief", "wallet-brief",
     "Full risk brief for one EVM wallet in a single call: sanctions-list check (OFAC SDN digital-currency entries), native balance and activity scan across 10 EVM chains, recent activity on the chosen chain and a plain-language summary. Use before sending funds to, or accepting funds from, an unknown address. For a sanctions check alone use genesis402_screen_sanctions (cheaper, any chain); for balances without risk signals use genesis402_multi_chain_scan; for a token contract use genesis402_token_brief. Returns each part with its own sources (a part that cannot be read is marked unavailable with the reason, never zeroed) and an evidence hash over all parts. Heuristic signals from public data: not KYC, not a compliance determination, not legal advice.",
     { address: EVM_ADDR.describe("The EVM wallet address to check, 0x followed by 40 hex characters. Checksum case is optional."), chain: CHAIN }],
@@ -251,6 +263,7 @@ const TITLES = {
   genesis402_email_check: "Check email or domain deliverability", genesis402_whois: "Look up domain registration (RDAP)",
   genesis402_extract_json: "Extract JSON fields from text", genesis402_web_extract: "Extract text from a web page",
   genesis402_prove: "Issue a signed proof receipt",
+  genesis402_counterparty_report: "Counterparty report: company, parents, sanctions verdict", genesis402_sanctions_name_screen: "Screen a name against UN, OFAC, EU, UK sanctions", genesis402_company_lookup: "Look up a company (GLEIF, SEC)",
   genesis402_summarize: "Summarize text", genesis402_answer_from_text: "Answer a question from a document",
   genesis402_translate: "Translate text", genesis402_paper_search: "Search scholarly papers"
 };
@@ -259,7 +272,7 @@ const PAY_ARG = { payment_signature: z.string().max(8000).optional().describe("O
 
 const INSTRUCTIONS = [
   "Genesis402 by UnyKorn: 360 pay-per-call data and tool endpoints for agents, settled per call in USDC on Base over x402 ($0.001 to $0.25 each). No accounts or API keys.",
-  "Pick a tool: use a dedicated genesis402_* tool when one fits (wallet or token risk, sanctions screening, multi-chain balances, DeFi yields, SEC financials, email and domain checks, web page text, JSON extraction, summaries, answers from a document, translation, scholarly paper search, signed proofs). For anything else, search genesis402_catalog (free) by keyword, then call the endpoint by name with genesis402_call.",
+  "Pick a tool: use a dedicated genesis402_* tool when one fits (counterparty checks on a company and its parents, sanctions screening of names or addresses, company lookup, multi-chain balances, DeFi yields, SEC financials, email and domain checks, web page text, JSON extraction, summaries, answers from a document, translation, scholarly paper search, signed proofs). For anything else, search genesis402_catalog (free) by keyword, then call the endpoint by name with genesis402_call.",
   "Payment: genesis402_catalog and genesis402_receipt are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call.",
   "Parameters are validated for free before any quote, so fix invalid_input errors before asking for payment. Risk and sanctions outputs are heuristic signals from public data, not KYC, compliance determinations, legal or investment advice; say so when you relay them."
 ].join("\n\n");

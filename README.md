@@ -96,6 +96,9 @@ Both dialects quote the same price to the same address in the same token. MPP di
 | `genesis402_catalog` | Every endpoint with path, price and parameter schema, from the live manifest | Free |
 | `genesis402_receipt` | Look up a paid-call receipt by id | Free |
 | `genesis402_call` | Call any of the 360 endpoints by name | Per endpoint |
+| `genesis402_counterparty_report` | Company + registered parents + UN/OFAC/EU/UK sanctions screen, one verdict, signed receipt, branded PDF and public verify page | $0.25 |
+| `genesis402_sanctions_name_screen` | One name against the UN, OFAC SDN, EU and UK lists, with list versions cited | $0.02 |
+| `genesis402_company_lookup` | Any company worldwide by name, LEI or SEC CIK (GLEIF + SEC EDGAR), with registered parents | $0.01 |
 | `genesis402_wallet_brief` | Wallet risk signals: sanctions list, 10-chain scan, activity, summary | Paid |
 | `genesis402_token_brief` | Token pre-trade check: metadata, price, holder concentration, verification | Paid |
 | `genesis402_screen_sanctions` | Public-data sanctions-list signal for one address | Paid |

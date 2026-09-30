@@ -2,7 +2,11 @@
 
 All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and signed on GitHub Actions (SLSA provenance) and published to npm and the MCP Registry by `.github/workflows/release-mcp.yml`.
 
-## 0.3.7 - 2026-09-30
+## 0.3.8 - 2026-09-30
+- Three dedicated compliance tools: `genesis402_counterparty_report` (report/counterparty, $0.25: company + registered parents + UN/OFAC/EU/UK screening, verdict, signed receipt, branded PDF link, public verify page), `genesis402_sanctions_name_screen` (screen/name, $0.02) and `genesis402_company_lookup` (screen/entity, GLEIF + SEC EDGAR, $0.01). 21 tools total.
+- Server instructions and listing descriptions lead with counterparty checks.
+
+## 0.3.7 - 2026-09-30 (not published separately; ships in 0.3.8)
 - Spend cap enforced twice for a local payer: against the quote before paying, and by the x402 client's `spendControls` when it signs, so a price that changes between quote and payment is refused.
 - A zero, negative or non-numeric `GENESIS402_MAX_USD` now keeps the server quote-only instead of silently disabling the cap.
 - A payment the client refuses to sign returns a clean `payment_not_made` tool error.

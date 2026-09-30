@@ -37,7 +37,7 @@ The rail sets the price. This client never does; it only decides whether to acce
 ## Hosted endpoint (no install)
 
 Connect any MCP client that supports streamable HTTP to **https://twin.unykorn.org/mcp**. It
-exposes the same 18 tools over all 360 endpoints.
+exposes the same 21 tools over all 360 endpoints.
 
 - Hosted MCP endpoint at https://twin.unykorn.org/mcp: it holds no keys. A paid tool returns the
   exact x402 quote.

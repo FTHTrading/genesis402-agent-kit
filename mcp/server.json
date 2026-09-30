@@ -2,19 +2,19 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.FTHTrading/genesis402-mcp",
   "title": "Genesis402 by UnyKorn (x402 pay-per-call)",
-  "description": "360 pay-per-call APIs for AI agents over x402: DeFi, chain reads, risk, SEC, web intel.",
+  "description": "Counterparty checks, sanctions screening, company lookup and 360 pay-per-call APIs over x402.",
   "repository": {
     "url": "https://github.com/FTHTrading/genesis402-agent-kit",
     "source": "github",
     "subfolder": "mcp"
   },
   "websiteUrl": "https://twin.unykorn.org/catalog",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "genesis402-mcp",
-      "version": "0.3.7",
+      "version": "0.3.8",
       "transport": {
         "type": "stdio"
       },
