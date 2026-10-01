@@ -1,0 +1,5 @@
+target/
+demo/.devnet/
+deploy/site.env
+deploy/*.key.json
+deploy/genesis.json

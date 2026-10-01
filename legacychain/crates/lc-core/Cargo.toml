@@ -1,0 +1,27 @@
+[package]
+name = "lc-core"
+description = "LegacyChain core: ledger state machine, genesis, sealed envelopes, x402/ERC-8004 verification"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+hex.workspace = true
+base64.workspace = true
+rand.workspace = true
+sha2.workspace = true
+sha3.workspace = true
+hkdf.workspace = true
+chacha20poly1305.workspace = true
+ed25519-dalek.workspace = true
+x25519-dalek.workspace = true
+k256.workspace = true
+argon2.workspace = true
+hmac.workspace = true
+zeroize.workspace = true

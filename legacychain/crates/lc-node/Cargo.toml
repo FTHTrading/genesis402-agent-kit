@@ -1,0 +1,29 @@
+[package]
+name = "lc-node"
+description = "LegacyChain validator / member node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "legacychain-node"
+path = "src/main.rs"
+
+[dependencies]
+lc-core.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+base64.workspace = true
+rand.workspace = true
+chacha20poly1305.workspace = true
+sha2.workspace = true
+clap.workspace = true
+tokio.workspace = true
+axum.workspace = true
+reqwest.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

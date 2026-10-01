@@ -32,6 +32,8 @@
 
 > **Guide:** [Screen a wallet before your agent moves money](docs/guides/screen-a-wallet.md) — $0.008 a check, three ways to call it.
 >
+> **LegacyChain:** [a private Rust chain for legacychain.app](legacychain/README.md): sealed money, contracts and agent tasks between members, funded over x402/MPP, with members bound to ERC-8004 identities.
+>
 > **Community:** [join the UnyKorn Discord](https://discord.gg/qqH42PswDd). Run a free counterparty report with `/check`, watch paid calls settle live in `#rail-feed`, and ask questions in `#help`.
 
 ## Connect in 30 seconds

@@ -1,0 +1,22 @@
+[package]
+name = "lc-cli"
+description = "LegacyChain member CLI: keys, genesis, send, seal, open, dispatch agents, deposit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "lc"
+path = "src/main.rs"
+
+[dependencies]
+lc-core.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+clap.workspace = true
+tokio.workspace = true
+reqwest.workspace = true

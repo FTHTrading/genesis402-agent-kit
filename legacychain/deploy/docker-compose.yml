@@ -1,0 +1,42 @@
+# One LegacyChain validator site (HQ, London or Alaska) behind a Cloudflare
+# Tunnel. No inbound ports are opened; cloudflared dials out to Cloudflare and
+# serves https://<site>.chain.legacychain.app.
+#
+#   cp site.env.example site.env   # fill in per site
+#   docker compose --env-file site.env up -d
+services:
+  node:
+    build: ..
+    image: legacychain:latest
+    restart: unless-stopped
+    environment:
+      LC_GENESIS: /etc/legacychain/genesis.json
+      LC_KEY: /etc/legacychain/node.key.json
+      LC_PASSPHRASE: ${LC_PASSPHRASE:?set LC_PASSPHRASE}
+      LC_STORAGE_KEY: ${LC_STORAGE_KEY:?set LC_STORAGE_KEY (openssl rand -hex 32)}
+      LC_PEERS: ${LC_PEERS}
+      LC_PUBLIC_URL: ${LC_PUBLIC_URL}
+      LC_FACILITATOR_URL: ${LC_FACILITATOR_URL:-}
+      LC_FACILITATOR_AUTH: ${LC_FACILITATOR_AUTH:-}
+      LC_BASE_RPC: ${LC_BASE_RPC:-https://mainnet.base.org}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ./genesis.json:/etc/legacychain/genesis.json:ro
+      - ./node.key.json:/etc/legacychain/node.key.json:ro
+      - chain-data:/var/lib/legacychain/data
+    networks: [lc]
+
+  tunnel:
+    image: cloudflare/cloudflared:2025.9.1
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?create a tunnel in Cloudflare Zero Trust and paste its token}
+    depends_on: [node]
+    networks: [lc]
+
+volumes:
+  chain-data:
+
+networks:
+  lc:
