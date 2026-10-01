@@ -26,8 +26,23 @@ A private, zero-fee Rust chain for **legacychain.app**. Members move money, cont
 Run all of it locally across three validators:
 
 ```bash
-cd legacychain && demo/devnet.sh
+git clone -b claude/charming-brown-a95vyl https://github.com/FTHTrading/genesis402-agent-kit
+cd genesis402-agent-kit/legacychain
+demo/devnet.sh            # macOS / Linux / WSL
 ```
+
+**Windows (PowerShell 7):**
+
+```powershell
+winget install --id Rustlang.Rustup -e
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+# open a new terminal so cargo is on PATH, then:
+git clone -b claude/charming-brown-a95vyl https://github.com/FTHTrading/genesis402-agent-kit
+cd genesis402-agent-kit\legacychain
+./demo/devnet.ps1
+```
+
+The first build takes a few minutes. After that the demo runs in under a minute.
 
 ## How "locked into the genesis, unwrapped on arrival" works
 
