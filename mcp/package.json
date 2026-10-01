@@ -1,6 +1,6 @@
 {
   "name": "genesis402-mcp",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "Genesis402 by UnyKorn: counterparty checks (company, registered parents, UN/OFAC/EU/UK sanctions, signed and verifiable), sanctions name screening and company lookup, plus 360 pay-per-call APIs for AI agents over x402 and MPP (USDC on Base). DeFi and market data, multi-chain reads, wallet and token risk signals, SEC financials, web and domain intel, AI text tools. Quote-only by default; hosted at https://twin.unykorn.org/mcp.",
   "keywords": [
     "mcp",
@@ -72,7 +72,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --check core.mjs && node --check http.mjs && node --check index.mjs && node boot-test.mjs && node smoke.mjs"
+    "test": "node --check core.mjs && node --check http.mjs && node --check index.mjs && node makegood-test.mjs && node boot-test.mjs && node smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",
