@@ -30,6 +30,8 @@
 
 ---
 
+> **Agents:** [the UnyKorn agent directory](docs/agents.md) — Genesis402, the Control desk, the Global Capital Desk and the sales team, each with its ERC-8004 identity on Base.
+>
 > **Guide:** [Screen a wallet before your agent moves money](docs/guides/screen-a-wallet.md) — $0.008 a check, three ways to call it.
 >
 > **Community:** [join the UnyKorn Discord](https://discord.gg/qqH42PswDd). Run a free counterparty report with `/check`, watch paid calls settle live in `#rail-feed`, and ask questions in `#help`.
@@ -154,6 +156,7 @@ x402 v2 `exact` scheme and MPP `usdc`/`charge` (EIP-3009 authorization), on USDC
 
 - `mcp/` — the MCP server (`npx genesis402-mcp`; `genesis402-mcp-http` for hosted mode), `server.json` for the MCP Registry, `smoke.mjs` (13 read-only checks against the live rail).
 - `quickstart/` — Node and Python payers for Base, XRPL and Stellar; `screen.mjs` for the wallet-screening guide.
+- `docs/` — [agent directory](docs/agents.md) and [guides](docs/guides/).
 - `assets/` — brand banner and icon.
 
 ---
