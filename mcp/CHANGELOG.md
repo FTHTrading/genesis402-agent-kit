@@ -2,6 +2,11 @@
 
 All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and signed on GitHub Actions (SLSA provenance) and published to npm and the MCP Registry by `.github/workflows/release-mcp.yml`.
 
+## 0.3.9 - 2026-10-01
+- Make-good: when a paid call settles but the rail fails to deliver, the rail returns a one-time make-good token. The client now redeems it once automatically (no new payment) and returns the result with `made_good: true`. If that retry also fails, the tool error carries `make_good_token`; pass it back on any paid tool as `make_good_token` (without `payment_signature`) to receive the result free later. A paid call is never paid twice.
+- A failed paid call that did settle now reports `paid: true, delivered: false` instead of `paid: false`.
+- `makegood-test.mjs`: offline test against a mock rail (11 checks), part of `npm test`.
+
 ## 0.3.8 - 2026-09-30
 - Three dedicated compliance tools: `genesis402_counterparty_report` (report/counterparty, $0.25: company + registered parents + UN/OFAC/EU/UK screening, verdict, signed receipt, branded PDF link, public verify page), `genesis402_sanctions_name_screen` (screen/name, $0.02) and `genesis402_company_lookup` (screen/entity, GLEIF + SEC EDGAR, $0.01). 21 tools total.
 - Server instructions and listing descriptions lead with counterparty checks.

@@ -15,7 +15,7 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.8";
+export const VERSION = "0.3.9";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -77,20 +77,58 @@ async function preValidate(name, params) {
   } catch { return null; }
 }
 
+// A paid call whose delivery failed after settlement comes back with a one-time make-good token
+// (X-Make-Good header and make_good.token in the body). Redeeming it re-runs the task free against
+// the original settlement: no new payment is signed or taken.
+function makeGoodToken(res, body) {
+  return res.headers.get("x-make-good") || body?.make_good?.token || null;
+}
+
+async function redeemMakeGood(url, init, token) {
+  const res = await fetch(url, { ...init, headers: { ...init.headers, "X-Make-Good": token } });
+  const body = await res.json().catch(() => null);
+  return { res, body };
+}
+
+// Turn the rail's answer to a paid attempt into a tool result. On a settled-but-undelivered call it
+// redeems the make-good token once; if that also fails, the newest token is handed back so the caller
+// can redeem it later with make_good_token instead of paying again.
+async function finishPaid(url, init, res, price) {
+  let body = await res.json().catch(() => null);
+  let settlement = null; const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
+  if (pr) { try { settlement = decodePaymentResponseHeader(pr); } catch {} }
+  if (res.ok) return ok({ mode: "PAID", paid: true, price, settlement, result: body });
+  const token = makeGoodToken(res, body);
+  if (!token) return fail({ status: res.status, paid: false, ...body });
+  const again = await redeemMakeGood(url, init, token);
+  if (again.res.ok) return ok({ mode: "PAID", paid: true, price, settlement, made_good: true, result: again.body });
+  const nextToken = makeGoodToken(again.res, again.body) || token;
+  return fail({
+    status: again.res.status, paid: true, delivered: false, ...again.body,
+    make_good_token: nextToken,
+    message: "Your payment settled but the result was not delivered, and one free retry also failed. The rail records it as owed. Call this tool again later with make_good_token=<token> (no payment_signature) to receive it free. Do not pay again."
+  });
+}
+
 // payer: { paidFetch, maxUsd } for the local stdio server with its own key, or null.
 // paymentSignature: an x402 v2 payment the CALLER signed for this exact quote (hosted mode).
-async function callPaid(name, params, payer, paymentSignature) {
+// makeGood: a make-good token from an earlier settled-but-undelivered call; redeems it, charges nothing.
+async function callPaid(name, params, payer, paymentSignature, makeGood) {
   const url = ORIGIN + pathOf(name);
   const init = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ params }) };
   const invalid = await preValidate(name, params);
   if (invalid) return fail({ error: "invalid_input", endpoint: name, message: invalid.message, checked_by: "free /__validate - nothing was charged and no quote was requested" });
 
+  if (makeGood) {
+    const { res, body } = await redeemMakeGood(url, init, makeGood);
+    if (res.ok) return ok({ mode: "PAID", paid: true, price: null, settlement: null, made_good: true, result: body });
+    const next = makeGoodToken(res, body);
+    return fail({ status: res.status, paid: true, delivered: false, ...body, ...(next ? { make_good_token: next } : {}), charged: "nothing - a make-good redemption never takes a payment" });
+  }
+
   if (paymentSignature) {
     const res = await fetch(url, { ...init, headers: { ...init.headers, "PAYMENT-SIGNATURE": paymentSignature, "X-PAYMENT": paymentSignature } });
-    const body = await res.json().catch(() => null);
-    let settlement = null; const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
-    if (pr) { try { settlement = decodePaymentResponseHeader(pr); } catch {} }
-    return res.ok ? ok({ mode: "PAID", paid: true, price: null, settlement, result: body }) : fail({ status: res.status, paid: false, ...body });
+    return finishPaid(url, init, res, null);
   }
 
   const probe = await fetch(url, init);
@@ -113,10 +151,7 @@ async function callPaid(name, params, payer, paymentSignature) {
   let res;
   try { res = await payer.paidFetch(url, init); }
   catch (e) { return fail({ error: "payment_not_made", message: String(e?.message || e).slice(0, 300), quote, cap_usd: payer.maxUsd }); }
-  const body = await res.json().catch(() => null);
-  let settlement = null; const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
-  if (pr) { try { settlement = decodePaymentResponseHeader(pr); } catch {} }
-  return res.ok ? ok({ mode: "PAID", paid: true, price: quote, settlement, result: body }) : fail({ status: res.status, paid: false, ...body });
+  return finishPaid(url, init, res, quote);
 }
 
 export function localPayerFromEnv() {
@@ -154,6 +189,7 @@ const PAID_OUTPUT = {
   payment_required_b64: z.string().nullable().optional().describe("QUOTE_ONLY: the raw base64 PAYMENT-REQUIRED header, to sign with any x402 v2 client."),
   how_to_pay: z.string().optional().describe("QUOTE_ONLY: how to sign and resend the call."),
   settlement: z.any().optional().describe("PAID: decoded PAYMENT-RESPONSE settlement (transaction hash, network, payer), or null if the rail sent none."),
+  made_good: z.boolean().optional().describe("PAID: true when the result was delivered free against an earlier settled payment whose first delivery failed (make-good)."),
   result: z.any().optional().describe("PAID or FREE: the endpoint's JSON result.")
 };
 const CATALOG_OUTPUT = {
@@ -268,12 +304,15 @@ const TITLES = {
   genesis402_translate: "Translate text", genesis402_paper_search: "Search scholarly papers"
 };
 const PAY_FLOW = "Payment: call once without payment_signature to get the exact price quote (nothing is charged or signed), then call again with the signed payment to receive the result and settlement details.";
-const PAY_ARG = { payment_signature: z.string().max(8000).optional().describe("Optional. An x402 v2 payment you signed for this call's quote (the PAYMENT-SIGNATURE header value). Omit to get the price quote first; nothing is charged without it.") };
+const PAY_ARG = {
+  payment_signature: z.string().max(8000).optional().describe("Optional. An x402 v2 payment you signed for this call's quote (the PAYMENT-SIGNATURE header value). Omit to get the price quote first; nothing is charged without it."),
+  make_good_token: z.string().min(16).max(128).optional().describe("Optional. The make_good_token returned by an earlier call that was paid but not delivered. Redeems that call for free; send it without payment_signature. Never pay twice for the same call.")
+};
 
 const INSTRUCTIONS = [
   "Genesis402 by UnyKorn: 360 pay-per-call data and tool endpoints for agents, settled per call in USDC on Base over x402 ($0.001 to $0.25 each). No accounts or API keys.",
   "Pick a tool: use a dedicated genesis402_* tool when one fits (counterparty checks on a company and its parents, sanctions screening of names or addresses, company lookup, multi-chain balances, DeFi yields, SEC financials, email and domain checks, web page text, JSON extraction, summaries, answers from a document, translation, scholarly paper search, signed proofs). For anything else, search genesis402_catalog (free) by keyword, then call the endpoint by name with genesis402_call.",
-  "Payment: genesis402_catalog and genesis402_receipt are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call.",
+  "Payment: genesis402_catalog and genesis402_receipt are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call. If a paid call settles but is not delivered, the result carries make_good_token: call the same tool again with it (no payment) to receive the result free, never pay twice.",
   "Parameters are validated for free before any quote, so fix invalid_input errors before asking for payment. Risk and sanctions outputs are heuristic signals from public data, not KYC, compliance determinations, legal or investment advice; say so when you relay them."
 ].join("\n\n");
 
@@ -292,14 +331,14 @@ export async function createServer({ payer = null, hosted = false } = {}) {
     const receipt = await r.json().catch(() => null);
     return receipt && typeof receipt === "object" && !Array.isArray(receipt) ? ok({ receipt_id, receipt }) : fail({ error: "malformed_receipt", receipt_id });
   });
-  server.registerTool("genesis402_call", { title: "Call any endpoint", description: `Calls any of the ${CATALOG.size || 360} Genesis402 endpoints by name (DeFi, SEC filings, research, web/domain intel, AI text tools, multi-chain reads). Prices $0.001-$0.25 USDC on Base. Use for any endpoint without a dedicated tool; look up the name and parameters with genesis402_catalog first. Parameters are validated for free before any quote. Without payment_signature (or a local payer) it returns the exact price quote and signs nothing; with payment it returns the result plus the settlement details.`, inputSchema: { endpoint: z.string().min(2).max(64).describe("Endpoint name exactly as listed by genesis402_catalog, e.g. \"defi-yields\" or \"wallet-brief\" (a leading slash is ignored)."), params: z.record(z.any()).optional().describe("Parameters for that endpoint as an object, matching the parameter schema shown in genesis402_catalog. Omit if the endpoint takes none."), ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ endpoint, params, payment_signature }) => {
+  server.registerTool("genesis402_call", { title: "Call any endpoint", description: `Calls any of the ${CATALOG.size || 360} Genesis402 endpoints by name (DeFi, SEC filings, research, web/domain intel, AI text tools, multi-chain reads). Prices $0.001-$0.25 USDC on Base. Use for any endpoint without a dedicated tool; look up the name and parameters with genesis402_catalog first. Parameters are validated for free before any quote. Without payment_signature (or a local payer) it returns the exact price quote and signs nothing; with payment it returns the result plus the settlement details.`, inputSchema: { endpoint: z.string().min(2).max(64).describe("Endpoint name exactly as listed by genesis402_catalog, e.g. \"defi-yields\" or \"wallet-brief\" (a leading slash is ignored)."), params: z.record(z.any()).optional().describe("Parameters for that endpoint as an object, matching the parameter schema shown in genesis402_catalog. Omit if the endpoint takes none."), ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ endpoint, params, payment_signature, make_good_token }) => {
     await loadCatalog(); const name = String(endpoint).replace(/^\//, "");
     if (CATALOG_OK && !CATALOG.has(name)) return fail({ error: "unknown_endpoint", endpoint: name, did_you_mean: [...CATALOG.keys()].filter((k) => k.includes(name) || name.includes(k)).slice(0, 8) });
-    return callPaid(name, params || {}, payer, payment_signature);
+    return callPaid(name, params || {}, payer, payment_signature, make_good_token);
   });
   for (const [tool, endpoint, blurb, schema] of NAMED) {
     if (CATALOG_OK && !CATALOG.has(endpoint)) continue;
-    server.registerTool(tool, { title: TITLES[tool] || tool, description: `${priceTag(endpoint)}. ${blurb} ${PAY_FLOW}`, inputSchema: { ...schema, ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, ...p }) => callPaid(endpoint, p, payer, payment_signature));
+    server.registerTool(tool, { title: TITLES[tool] || tool, description: `${priceTag(endpoint)}. ${blurb} ${PAY_FLOW}`, inputSchema: { ...schema, ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, make_good_token, ...p }) => callPaid(endpoint, p, payer, payment_signature, make_good_token));
   }
   return server;
 }
