@@ -37,7 +37,7 @@ The rail sets the price. This client never does; it only decides whether to acce
 ## Hosted endpoint (no install)
 
 Connect any MCP client that supports streamable HTTP to **https://twin.unykorn.org/mcp**. It
-exposes the same 21 tools over all 360 endpoints.
+exposes the same 22 tools over every endpoint in the catalog.
 
 - Hosted MCP endpoint at https://twin.unykorn.org/mcp: it holds no keys. A paid tool returns the
   exact x402 quote.
@@ -92,12 +92,13 @@ client advertising a stale number.
 |---|---|---|
 | `genesis402_catalog` | free | Every endpoint with price, title, path and parameters. Call first. |
 | `genesis402_receipt` | free | A paid-call receipt by id from the public receipts feed. |
-| `genesis402_call` | per endpoint | Call any of the 360 endpoints by name. |
+| `genesis402_call` | per endpoint | Call any endpoint in the catalog by name. |
 | `genesis402_wallet_brief` | paid | Wallet risk signals in one call: public sanctions-list check, 10-chain scan, activity and summary, with an evidence hash. |
 | `genesis402_token_brief` | paid | Token pre-trade check: metadata, price, holder concentration, source verification, sanctions-list signal. |
 | `genesis402_screen_sanctions` | paid | Public-data sanctions-list signal: OFAC SDN digital-currency entries and community blocklists. |
 | `genesis402_multi_chain_scan` | paid | One call across 10 EVM chains for a single address. |
 | `genesis402_defi_yields` | paid | DeFi yields from 15,000+ pools, filterable by chain, protocol, token, stablecoin-only and minimum TVL. |
+| `genesis402_market_snapshot` | paid | Price with 24h and 7d change for the major coins, or up to 25 you name, in one call. |
 | `genesis402_sec_financials` | paid | As-reported fundamentals for a US public company from SEC XBRL. |
 | `genesis402_email_check` | paid | Email/domain deliverability: MX, provider, SPF, DMARC, disposable flag. |
 | `genesis402_whois` | paid | Domain registrar, age, expiry, status and nameservers via RDAP. |

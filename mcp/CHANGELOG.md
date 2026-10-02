@@ -2,6 +2,10 @@
 
 All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and signed on GitHub Actions (SLSA provenance) and published to npm and the MCP Registry by `.github/workflows/release-mcp.yml`.
 
+## 0.3.9 - 2026-10-02 (prepared, not yet published)
+- New dedicated tool `genesis402_market_snapshot` (price/market-snapshot, $0.004): USD price with 24-hour and 7-day change for the twelve major coins, or up to 25 named coins, in one call. Accepts CoinGecko ids or major-coin tickers. Coins with no live price are marked unavailable.
+- README no longer states a fixed endpoint count; the catalog is the source.
+
 ## 0.3.8 - 2026-09-30
 - Three dedicated compliance tools: `genesis402_counterparty_report` (report/counterparty, $0.25: company + registered parents + UN/OFAC/EU/UK screening, verdict, signed receipt, branded PDF link, public verify page), `genesis402_sanctions_name_screen` (screen/name, $0.02) and `genesis402_company_lookup` (screen/entity, GLEIF + SEC EDGAR, $0.01). 21 tools total.
 - Server instructions and listing descriptions lead with counterparty checks.

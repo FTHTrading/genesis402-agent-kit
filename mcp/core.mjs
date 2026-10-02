@@ -15,7 +15,7 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.8";
+export const VERSION = "0.3.9";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -211,6 +211,9 @@ const NAMED = [
       min_tvl_usd: z.number().optional().describe("Minimum pool TVL in US dollars as a plain number. Defaults to 1000000 ($1M) when omitted."),
       sort: z.enum(["apy", "tvl"]).optional().describe("Sort order: 'apy' (highest yield first) or 'tvl' (largest pool first)."),
       limit: z.number().int().min(1).max(100).optional().describe("How many pools to return, 1 to 100.") }],
+  ["genesis402_market_snapshot", "market-snapshot",
+    "USD price with 24-hour and 7-day change for the major crypto assets in a single call, or for up to 25 coins you name. Use when you need more than one price at once: one payment instead of one per coin. For a single coin, or for a token by contract address, search genesis402_catalog and call the endpoint through genesis402_call. Returns one row per coin with price, both changes, timestamp and pricing confidence, plus how many coins rose and fell over 24 hours. Coins with no live price are marked unavailable, never priced at zero. Third-party market data from DefiLlama, as published: not investment advice and no recommendation.",
+    { coins: z.array(z.string().min(1).max(60)).max(25).optional().describe("Up to 25 coins as CoinGecko ids (bitcoin, ethereum, solana) or major-coin tickers (BTC, ETH, SOL). Omit for the twelve major coins.") }],
   ["genesis402_sec_financials", "sec-financials",
     "As-reported fundamentals for one SEC filer from XBRL company facts. Use for quick fundamentals without a data vendor. For other SEC data search genesis402_catalog for \"sec\" and use genesis402_call. Give ticker or cik; one is required. Returns the latest annual and latest quarterly values for revenue, net income, operating income, total assets, liabilities, equity, cash, operating cash flow and diluted EPS, each with period end and filing date. Missing tags are marked unavailable, never estimated. Not investment advice.",
     { ticker: z.string().max(60).optional().describe("Stock ticker, e.g. COIN or AAPL. Provide this or cik."),
@@ -259,7 +262,7 @@ const NAMED = [
 const TITLES = {
   genesis402_wallet_brief: "Wallet risk brief", genesis402_token_brief: "Token pre-trade brief",
   genesis402_screen_sanctions: "Screen address against sanctions lists", genesis402_multi_chain_scan: "Scan address across 10 EVM chains",
-  genesis402_defi_yields: "Find DeFi yields", genesis402_sec_financials: "Get SEC company financials",
+  genesis402_defi_yields: "Find DeFi yields", genesis402_market_snapshot: "Market snapshot: major coin prices with 24h and 7d change", genesis402_sec_financials: "Get SEC company financials",
   genesis402_email_check: "Check email or domain deliverability", genesis402_whois: "Look up domain registration (RDAP)",
   genesis402_extract_json: "Extract JSON fields from text", genesis402_web_extract: "Extract text from a web page",
   genesis402_prove: "Issue a signed proof receipt",
