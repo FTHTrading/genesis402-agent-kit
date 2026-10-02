@@ -76,7 +76,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",
-    "@x402/evm": "^2.26.0",
+    "@x402/evm": "^2.27.0",
     "@x402/fetch": "^2.26.0",
     "viem": "^2.40.0",
     "zod": "^3.25.0"
