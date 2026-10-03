@@ -48,3 +48,27 @@ jobs:
             '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 20; } \
             | timeout 40 docker run --rm -i genesis402-mcp | tee out.jsonl || true
           grep -q '"genesis402_catalog"' out.jsonl
+
+  legacychain:
+    name: LegacyChain (Rust) tests + three-validator devnet
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: legacychain
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - run: cargo test --locked
+      - name: End-to-end devnet (money, sealed contracts, agent escrow, RWA, x402 + MPP deposits)
+        run: timeout 600 demo/devnet.sh
+
+  legacychain-docker:
+    name: LegacyChain node image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - run: docker build -t legacychain ./legacychain
+      - run: docker run --rm --entrypoint lc legacychain --version
