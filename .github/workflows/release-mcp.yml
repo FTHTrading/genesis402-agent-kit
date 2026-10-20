@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # gh release create (Glama release signal)
   id-token: write   # npm trusted publishing + provenance, and MCP Registry github-oidc
 
 concurrency:
@@ -104,3 +104,27 @@ jobs:
             sleep 10
           done
           echo "registry did not report ${{ steps.ver.outputs.version }} in time"; exit 1
+
+      # Smithery: re-point the listing at the rail's own URL (Smithery's hosted run.tools URLs stop on 2026-10-31).
+      # Documented command: https://smithery.ai/docs/build/publish.md ("smithery mcp publish <url> -n <org/name>").
+      # Needs a Smithery API key, which only Kevan can create (credential): add it as the repo SECRET SMITHERY_API_KEY
+      # in Settings > Secrets and variables > Actions (environment release-mcp). Without the secret this step is skipped
+      # and the run stays green. UNVERIFIED: whether the CLI authenticates from SMITHERY_API_KEY and whether it
+      # re-publishes over an existing listing name; the first tag run after the secret is added is the test.
+      - name: Smithery re-publish (optional, needs SMITHERY_API_KEY)
+        env:
+          SMITHERY_API_KEY: ${{ secrets.SMITHERY_API_KEY }}
+        run: |
+          if [ -z "$SMITHERY_API_KEY" ]; then echo "SMITHERY_API_KEY not set; skipping Smithery (listing needs the direct URL set by hand before 2026-10-31)"; exit 0; fi
+          npx --yes @smithery/cli@4.11.1 mcp publish "https://twin.unykorn.org/mcp" -n kevanbtc/genesis402-mcp
+
+      # Glama: no release trigger exists. Its public API (https://glama.ai/api/mcp/openapi.json, read 2026-10-20) is
+      # GET-only apart from usage telemetry, and no webhook or GitHub App for re-scans is documented. Glama builds from
+      # the repo and its Admin tab; after the one-time claim (glama.json maintainer = a GitHub username) a GitHub
+      # Release is the signal Glama's maintainer (Frank, 2026-10-17) asked for, so create one per tag:
+      - name: GitHub Release (Glama picks up releases)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "genesis402-mcp ${{ steps.ver.outputs.version }}" --notes "See mcp/CHANGELOG.md. npm: genesis402-mcp@${{ steps.ver.outputs.version }}. MCP Registry: io.github.FTHTrading/genesis402-mcp."
