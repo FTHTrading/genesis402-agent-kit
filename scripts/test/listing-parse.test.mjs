@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   EXPECT, classify, parseServed, parseOfficialRegistry, parseNpm, parseSmithery, parseGlamaPage,
-  parseWellknownPage, parsePayapi, countBazaar, renderTable, recordsLine
+  parseWellknownPage, parsePayapi, parseSitemapListing, countBazaar, renderTable, recordsLine
 } from "../lib/listing-parse.mjs";
 
 const SERVED = { version: "0.3.10", tools: 21 };
@@ -102,4 +102,14 @@ test("renderTable and recordsLine are stable and carry a hash, never raw secrets
   assert.match(line, /^2026-10-20T09:00:00Z \| listings \| agent \| [0-9a-f]{64} \|/);
   assert.match(line, /1 LIVE, 0 DRIFT, 0 DOWN, 0 UNREADABLE/);
   assert.equal(line.includes("\n"), false);
+});
+
+test("sitemap listing: finds our page, ignores localized duplicates, reports LIVE with the honest note", () => {
+  const xml = "<urlset><loc>https://mcpservers.org/servers/other/x</loc><loc>https://mcpservers.org/es/servers/fthtrading/genesis402-agent-kit</loc><loc>https://mcpservers.org/servers/fthtrading/genesis402-agent-kit</loc></urlset>";
+  const r = parseSitemapListing("mcpservers.org", [xml], "fthtrading/genesis402");
+  assert.equal(r.url, "https://mcpservers.org/servers/fthtrading/genesis402-agent-kit");
+  const c = classify(r, SERVED);
+  assert.equal(c.state, "LIVE");
+  assert.match(c.note, /sitemap/);
+  assert.equal(classify(parseSitemapListing("x", ["<urlset></urlset>"], "fthtrading/genesis402"), SERVED).state, "DOWN");
 });

@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   EXPECT, classify, parseServed, parseOfficialRegistry, parseNpm, parseSmithery, parseGlamaPage, parseWellknownPage,
-  parseNamedPage, parsePayapi, countBazaar, renderTable, recordsLine
+  parseNamedPage, parsePayapi, parseSitemapListing, countBazaar, renderTable, recordsLine
 } from "./lib/listing-parse.mjs";
 
 const UA = "genesis402-listing-watch/1 (+https://github.com/FTHTrading/genesis402-agent-kit)";
@@ -57,6 +57,15 @@ async function bazaarPages() {
   return { pages, ok: true, status: 200 };
 }
 
+/** Fetch every server sitemap of a directory (index -> children). Returns the documents, or null if the index is unreadable. */
+async function sitemapDocs(indexUrl, childFilter) {
+  const idx = await get(indexUrl);
+  if (idx.status !== 200) return null;
+  const kids = [...idx.text.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]).filter((u) => childFilter.test(u));
+  const docs = await Promise.all(kids.map((u) => get(u)));
+  return docs.filter((d) => d.status === 200).map((d) => d.text);
+}
+
 async function main() {
   const iso = new Date().toISOString().replace(/\.\d+Z$/, "Z");
   const [init, list] = await Promise.all([mcp(1, "initialize"), mcp(2, "tools/list")]);
@@ -79,12 +88,22 @@ async function main() {
     classify(fromFetch(smi, parseSmithery(asJson(smi))), served),
     classify(fromFetch(glama, parseGlamaPage(glama.text, glama.status)), served),
     classify(fromFetch(wk, parseWellknownPage(wk.text, wk.status)), served),
-    classify(fromFetch(rush, parseNamedPage("mcprush.com", rush.text, rush.status)), served),
+    rush.status === 200 ? classify(parseNamedPage("mcprush.com", rush.text, rush.status), served) : null,
     classify(fromFetch(payapi, parsePayapi(asJson(payapi))), served),
     bz.ok ? classify(countBazaar(bz.pages), served) : classify({ surface: "Coinbase x402 Bazaar", status: bz.status === 200 ? 429 : bz.status, note: "discovery API did not return a page" }, served),
-    { surface: "agent402.tools", state: "UNREADABLE", note: "seller lookup is a paid read ($0.005); not probed" },
-    { surface: "mcpservers.org", state: "UNREADABLE", note: "no listing URL on record; not probed" }
+    { surface: "agent402.tools", state: "UNREADABLE", note: "seller lookup is a paid read ($0.005); not probed" }
   ];
+  for (const [surface, index, filter, needle] of [
+    ["mcpservers.org", "https://mcpservers.org/sitemap.xml", /sitemaps\/(priority-)?servers/, "fthtrading/genesis402"]
+  ]) {
+    const docs = await sitemapDocs(index, filter);
+    rows.push(docs ? classify(parseSitemapListing(surface, docs, needle), served) : { surface, state: "UNREADABLE", note: "sitemap not readable" });
+  }
+  if (rows.includes(null)) {
+    rows.splice(rows.indexOf(null), 1);
+    const docs = await sitemapDocs("https://mcprush.com/sitemap.xml", /sitemap-servers/);
+    rows.push(docs ? classify(parseSitemapListing("mcprush.com", docs, "fthtrading/genesis402"), served) : { surface: "mcprush.com", state: "UNREADABLE", note: `page HTTP ${rush.status}; sitemap not readable` });
+  }
   if (served.version === null) rows.unshift({ surface: "Rail MCP (twin.unykorn.org/mcp)", state: "DOWN", note: "initialize failed; other rows have no reference version" });
   else rows.unshift({ surface: "Rail MCP (twin.unykorn.org/mcp)", state: "LIVE", version: served.version, tools: served.tools, url: EXPECT.mcpUrl, note: "" });
 

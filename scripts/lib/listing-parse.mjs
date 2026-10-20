@@ -70,6 +70,21 @@ export function countBazaar(pages) {
   return { surface: "Coinbase x402 Bazaar", found: n > 0, listings: n };
 }
 
+/**
+ * Directory sites that block scripted page fetches (403) still publish a sitemap that robots.txt allows. A listing's URL
+ * in that sitemap proves the directory lists us; it does not prove the page text is current, so the note says so.
+ * `xmls` are the sitemap documents (server sitemaps); `needle` is the slug fragment, e.g. "fthtrading/genesis402".
+ */
+export function parseSitemapListing(surface, xmls, needle) {
+  const re = /<loc>([^<]+)<\/loc>/g;
+  for (const x of xmls || []) {
+    for (const m of (x || "").matchAll(re)) {
+      if (m[1].toLowerCase().includes(needle.toLowerCase()) && !/\/[a-z]{2}(-[A-Za-z]{2})?\/servers\//.test(m[1])) return { surface, found: true, sitemap: true, url: m[1], note: "listed in the site's public sitemap; page text not checked" };
+    }
+  }
+  return { surface, found: false };
+}
+
 export function classify(row, served) {
   if (row.status === 403 || row.status === 429) return { ...row, state: "UNREADABLE", note: row.note || `HTTP ${row.status}: the site blocked the script` };
   if (row.status && (row.status >= 500 || row.status === 404 || row.status === 410)) return { ...row, state: "DOWN", note: `HTTP ${row.status}` };
@@ -80,9 +95,9 @@ export function classify(row, served) {
   if (row.url) {
     const h = hostOf(row.url);
     if (EXPECT.retiringHosts.some((r) => h === r || h.endsWith("." + r))) notes.push(`URL ${h} is being retired (2026-10-31); direct URL ${EXPECT.mcpUrl} is not shown`);
-    else if (row.surface !== "Smithery" && row.url !== EXPECT.mcpUrl) notes.push(`URL shown is ${row.url}`);
+    else if (row.surface !== "Smithery" && !row.sitemap && row.url !== EXPECT.mcpUrl) notes.push(`URL shown is ${row.url}`);
   }
-  return { ...row, state: notes.length ? "DRIFT" : "LIVE", note: notes.join("; ") };
+  return { ...row, state: notes.length ? "DRIFT" : "LIVE", note: notes.length ? notes.join("; ") : (row.note || "") };
 }
 
 const cell = (v) => (v === null || v === undefined || v === "" ? "-" : String(v).replace(/\|/g, "/"));
