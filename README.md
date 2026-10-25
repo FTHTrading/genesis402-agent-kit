@@ -6,7 +6,7 @@
   <a href="https://www.npmjs.com/package/genesis402-mcp"><img src="https://img.shields.io/npm/v/genesis402-mcp?color=c4560a&label=npm" alt="npm"></a>
   <a href="https://registry.modelcontextprotocol.io/v0/servers?search=genesis402"><img src="https://img.shields.io/badge/MCP%20Registry-io.github.FTHTrading%2Fgenesis402--mcp-0b0d12" alt="MCP Registry"></a>
   <a href="https://glama.ai/mcp/connectors/io.github.FTHTrading/genesis402-mcp"><img src="https://img.shields.io/badge/Glama-connector-0b0d12" alt="Glama"></a>
-  <a href="https://smithery.ai/servers/kevanbtc/genesis402-mcp"><img src="https://smithery.ai/badge/kevanbtc/genesis402-mcp" alt="smithery badge"></a>
+  <a href="https://lightnow.ai/servers/io.github.FTHTrading/genesis402-mcp"><img src="https://lightnow.ai/badge/io.github.FTHTrading/genesis402-mcp" alt="LightNow capabilities"></a>
   <a href="https://mcpservers.org/servers/fthtrading/genesis402-agent-kit"><img src="https://mcpservers.org/badge.svg" alt="Listed on mcpservers.org"></a>
   <a href="https://8004scan.io/agents/base/95721"><img src="https://img.shields.io/badge/ERC--8004-agent%2095721%20on%20Base-9a6a1f" alt="ERC-8004 agent 95721"></a>
   <a href="https://twin.unykorn.org/status"><img src="https://img.shields.io/badge/status-live-1fbf75" alt="Live status"></a>
