@@ -14,8 +14,9 @@ import { z } from "zod";
 import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
+import { AsyncLocalStorage } from "node:async_hooks";
 
-export const VERSION = "0.3.10";
+export const VERSION = "0.3.11";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -79,18 +80,58 @@ async function preValidate(name, params) {
 
 // payer: { paidFetch, maxUsd } for the local stdio server with its own key, or null.
 // paymentSignature: an x402 v2 payment the CALLER signed for this exact quote (hosted mode).
-async function callPaid(name, params, payer, paymentSignature) {
+// Owed deliveries. When a paid call settles but the rail cannot deliver, it answers 500 with
+// payment.status "owed" and a private payment.owed_ticket. Re-sending the SAME signed payment with
+// X-OWED-TICKET re-delivers once at no extra cost: the rail does not settle that payment again.
+// The client redeems once automatically; if that fails too it returns the ticket so the caller can
+// redeem later with owed_ticket + the same payment_signature. A buyer is never asked to pay twice.
+const paymentCapture = new AsyncLocalStorage();
+const owedTicketOf = (body) => (body?.payment?.status === "owed" && typeof body.payment.owed_ticket === "string" ? body.payment.owed_ticket : null);
+
+async function sendPaid(url, init, payment, ticket) {
+  const headers = { ...init.headers, "PAYMENT-SIGNATURE": payment, "X-PAYMENT": payment, ...(ticket ? { "X-OWED-TICKET": ticket } : {}) };
+  const res = await fetch(url, { ...init, headers });
+  return { res, body: await res.json().catch(() => null) };
+}
+
+function settlementOf(res) {
+  const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
+  if (!pr) return null;
+  try { return decodePaymentResponseHeader(pr); } catch { return null; }
+}
+
+// Turn the rail's answer to a paid attempt into a tool result, redeeming an owed ticket once.
+async function finishPaid(url, init, res, body, payment, price) {
+  if (res.ok) return ok({ mode: "PAID", paid: true, price, settlement: settlementOf(res), result: body });
+  const ticket = owedTicketOf(body);
+  if (!ticket) return fail({ status: res.status, paid: false, ...body });
+  if (payment) {
+    const again = await sendPaid(url, init, payment, ticket);
+    if (again.res.ok) return ok({ mode: "PAID", paid: true, price, settlement: settlementOf(again.res), made_good: true, result: again.body });
+    const next = owedTicketOf(again.body) || ticket;
+    return fail({ status: again.res.status, paid: true, delivered: false, ...again.body, owed_ticket: next, ...(price ? { payment_signature: payment } : {}),
+      message: "Your payment settled but the result was not delivered, and one free re-delivery also failed. It is recorded as owed. Call this tool again later with owed_ticket=<owed_ticket> and the same payment_signature to receive it at no extra cost. Do not sign a new payment." });
+  }
+  return fail({ status: res.status, paid: true, delivered: false, ...body, owed_ticket: ticket,
+    message: "Your payment settled but the result was not delivered. It is recorded as owed: call this tool again with owed_ticket=<owed_ticket> and the same payment_signature to receive it at no extra cost." });
+}
+
+// payer: { paidFetch, maxUsd } for the local stdio server with its own key, or null.
+// paymentSignature: an x402 v2 payment the CALLER signed for this exact quote (hosted mode).
+// owedTicket: an owed_ticket from an earlier settled-but-undelivered call; sent with that call's payment.
+async function callPaid(name, params, payer, paymentSignature, owedTicket) {
   const url = ORIGIN + pathOf(name);
   const init = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ params }) };
   const invalid = await preValidate(name, params);
   if (invalid) return fail({ error: "invalid_input", endpoint: name, message: invalid.message, checked_by: "free /__validate - nothing was charged and no quote was requested" });
 
+  if (owedTicket && !paymentSignature) {
+    return fail({ error: "owed_ticket_needs_payment_signature", charged: false, message: "An owed_ticket redeems only together with the payment_signature of the call it was issued for. Send both. Nothing was charged." });
+  }
   if (paymentSignature) {
-    const res = await fetch(url, { ...init, headers: { ...init.headers, "PAYMENT-SIGNATURE": paymentSignature, "X-PAYMENT": paymentSignature } });
-    const body = await res.json().catch(() => null);
-    let settlement = null; const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
-    if (pr) { try { settlement = decodePaymentResponseHeader(pr); } catch {} }
-    return res.ok ? ok({ mode: "PAID", paid: true, price: null, settlement, result: body }) : fail({ status: res.status, paid: false, ...body });
+    const { res, body } = await sendPaid(url, init, paymentSignature, owedTicket || null);
+    if (owedTicket) return res.ok ? ok({ mode: "PAID", paid: true, price: null, settlement: settlementOf(res), made_good: true, result: body }) : fail({ status: res.status, paid: true, delivered: false, ...body });
+    return finishPaid(url, init, res, body, paymentSignature, null);
   }
 
   const probe = await fetch(url, init);
@@ -110,13 +151,24 @@ async function callPaid(name, params, payer, paymentSignature) {
   }
   if (!quote) return fail({ error: "no_base_usdc_lane" });
   if (quote.usd > payer.maxUsd) return fail({ error: "price_above_cap", quote, cap_usd: payer.maxUsd });
+  const slot = {};
   let res;
-  try { res = await payer.paidFetch(url, init); }
+  try { res = await paymentCapture.run(slot, () => payer.paidFetch(url, init)); }
   catch (e) { return fail({ error: "payment_not_made", message: String(e?.message || e).slice(0, 300), quote, cap_usd: payer.maxUsd }); }
   const body = await res.json().catch(() => null);
-  let settlement = null; const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
-  if (pr) { try { settlement = decodePaymentResponseHeader(pr); } catch {} }
-  return res.ok ? ok({ mode: "PAID", paid: true, price: quote, settlement, result: body }) : fail({ status: res.status, paid: false, ...body });
+  return finishPaid(url, init, res, body, slot.payment || null, quote);
+}
+
+// The fetch the x402 client sends through: records the signed payment header of the call in flight,
+// so an owed delivery can be redeemed with that same payment instead of a new one.
+async function capturingFetch(input, init) {
+  const slot = paymentCapture.getStore();
+  if (slot) {
+    const h = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+    const p = h.get("payment-signature") || h.get("x-payment");
+    if (p) slot.payment = p;
+  }
+  return fetch(input, init);
 }
 
 export function localPayerFromEnv() {
@@ -132,7 +184,7 @@ export function localPayerFromEnv() {
     process.stderr.write(`[genesis402] GENESIS402_MAX_USD="${process.env.GENESIS402_MAX_USD}" is not a positive number; staying quote-only\n`);
     return null;
   }
-  return { paidFetch: wrapFetchWithPaymentFromConfig(fetch, { schemes: [{ network: BASE, client: new ExactEvmScheme(account) }], spendControls: { maxAmountPerPayment: `$${maxUsd}` } }), maxUsd };
+  return { paidFetch: wrapFetchWithPaymentFromConfig(capturingFetch, { schemes: [{ network: BASE, client: new ExactEvmScheme(account) }], spendControls: { maxAmountPerPayment: `$${maxUsd}` } }), maxUsd };
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +206,7 @@ const PAID_OUTPUT = {
   payment_required_b64: z.string().nullable().optional().describe("QUOTE_ONLY: the raw base64 PAYMENT-REQUIRED header, to sign with any x402 v2 client."),
   how_to_pay: z.string().optional().describe("QUOTE_ONLY: how to sign and resend the call."),
   settlement: z.any().optional().describe("PAID: decoded PAYMENT-RESPONSE settlement (transaction hash, network, payer), or null if the rail sent none."),
+  made_good: z.boolean().optional().describe("PAID: true when the result was re-delivered at no extra cost against an earlier settled payment whose first delivery failed (owed ticket)."),
   result: z.any().optional().describe("PAID or FREE: the endpoint's JSON result.")
 };
 const CATALOG_OUTPUT = {
@@ -181,6 +234,12 @@ const NAMED = [
     "Check one company before you deal with it. Resolves the company in the GLEIF register (name or 20-character LEI), follows its registered direct and ultimate parent, and screens every name in that group against the UN, US OFAC SDN, EU and UK sanctions lists. Returns one verdict (clear, review or stop) with every reason sourced, the registry record, the group screened, the list versions used, an Ed25519-signed receipt, a private link to a branded PDF (7 days) and a public verify page. A vague name (e.g. a bare brand) returns review and names the entity it assumed. Screening and registry signals only: not KYC, not a compliance determination, not legal advice.",
     { query: z.string().min(3).max(200).describe("Company legal name (3 to 200 characters) or its 20-character LEI. The exact legal name or LEI gives the most precise result."),
       type: z.enum(["individual", "entity"]).optional().describe("Optional. Used only when no registry record is found and the name is screened as given.") }],
+  ["genesis402_examiner_dossier", "examiner-dossier",
+    "Full pre-deal check on one person or company in a single call, sold by The Examiner (ERC-8004 agent #96494 on Base): the official registry record (GLEIF, SEC EDGAR), a UN/US OFAC/EU/UK sanctions name screen, and the counterparty report on the entity and its registered parents, plus an optional on-chain read of a Base wallet. Optionally compares the registry jurisdiction with the one you expect. Costs more than the single checks ($0.75), so a local payer needs GENESIS402_MAX_USD of at least 0.75; under the default $0.25 cap it is refused before anything is signed. For the company-and-parents screen alone use genesis402_counterparty_report. Screening and registry signals only: not KYC, not a compliance determination, not legal advice.",
+    { name: z.string().min(3).max(200).describe("The person or company to examine, 3 to 200 characters. The exact legal name gives the most precise result."),
+      jurisdiction: z.string().regex(/^[A-Za-z]{2}(-[A-Za-z0-9]{1,3})?$/).optional().describe("Optional ISO 3166 code such as GB, US or US-DE, compared with the registry record's jurisdiction."),
+      lei: z.string().regex(/^[A-Za-z0-9]{20}$/).optional().describe("Optional 20-character LEI. When given, the registry lookup and the counterparty report use it instead of the name."),
+      wallet: EVM_ADDR.optional().describe("Optional EVM wallet address of the counterparty, 0x followed by 40 hex characters, read on Base.") }],
   ["genesis402_sanctions_name_screen", "sanctions-name-screen",
     "Screen one person or organisation name against the UN, US OFAC SDN, EU and UK consolidated sanctions lists, including aliases and transliterations. Returns match, possible match or no match, each hit with list, list id, matched name and score, and the published date and SHA-256 of every list version used. For a company and its parents in one call use genesis402_counterparty_report; for a wallet address use genesis402_screen_sanctions. Screening signal only: not KYC, not a compliance determination, not legal advice.",
     { name: z.string().min(3).max(200).describe("The person or organisation name to screen, 3 to 200 characters."),
@@ -266,17 +325,20 @@ const TITLES = {
   genesis402_email_check: "Check email or domain deliverability", genesis402_whois: "Look up domain registration (RDAP)",
   genesis402_extract_json: "Extract JSON fields from text", genesis402_web_extract: "Extract text from a web page",
   genesis402_prove: "Issue a signed proof receipt",
-  genesis402_counterparty_report: "Counterparty report: company, parents, sanctions verdict", genesis402_sanctions_name_screen: "Screen a name against UN, OFAC, EU, UK sanctions", genesis402_company_lookup: "Look up a company (GLEIF, SEC)",
+  genesis402_counterparty_report: "Counterparty report: company, parents, sanctions verdict", genesis402_examiner_dossier: "Examiner dossier: registry, sanctions and counterparty in one call", genesis402_sanctions_name_screen: "Screen a name against UN, OFAC, EU, UK sanctions", genesis402_company_lookup: "Look up a company (GLEIF, SEC)",
   genesis402_summarize: "Summarize text", genesis402_answer_from_text: "Answer a question from a document",
   genesis402_translate: "Translate text", genesis402_paper_search: "Search scholarly papers"
 };
 const PAY_FLOW = "Payment: call once without payment_signature to get the exact price quote (nothing is charged or signed), then call again with the signed payment to receive the result and settlement details.";
-const PAY_ARG = { payment_signature: z.string().max(8000).optional().describe("Optional. An x402 v2 payment you signed for this call's quote (the PAYMENT-SIGNATURE header value). Omit to get the price quote first; nothing is charged without it.") };
+const PAY_ARG = {
+  payment_signature: z.string().max(8000).optional().describe("Optional. An x402 v2 payment you signed for this call's quote (the PAYMENT-SIGNATURE header value). Omit to get the price quote first; nothing is charged without it."),
+  owed_ticket: z.string().min(8).max(256).optional().describe("Optional. The owed_ticket returned by an earlier call that was paid but not delivered. Send it with that call's same payment_signature to receive the result at no extra cost. Never sign a new payment for an owed call.")
+};
 
 const INSTRUCTIONS = [
   "Genesis402 by UnyKorn: 360+ pay-per-call data and tool endpoints for agents, settled per call in USDC on Base over x402 ($0.001 to $0.25 each). No accounts or API keys.",
   "Pick a tool: use a dedicated genesis402_* tool when one fits (counterparty checks on a company and its parents, sanctions screening of names or addresses, company lookup, multi-chain balances, DeFi yields, SEC financials, email and domain checks, web page text, JSON extraction, summaries, answers from a document, translation, scholarly paper search, signed proofs). For anything else, search genesis402_catalog (free) by keyword, then call the endpoint by name with genesis402_call.",
-  "Payment: genesis402_catalog and genesis402_receipt are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call.",
+  "Payment: genesis402_catalog and genesis402_receipt are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call. If a paid call settles but is not delivered, the result carries owed_ticket: call the same tool again with owed_ticket and the same payment_signature to receive it at no extra cost. Never pay twice.",
   "Parameters are validated for free before any quote, so fix invalid_input errors before asking for payment. Risk and sanctions outputs are heuristic signals from public data, not KYC, compliance determinations, legal or investment advice; say so when you relay them."
 ].join("\n\n");
 
@@ -295,14 +357,14 @@ export async function createServer({ payer = null, hosted = false } = {}) {
     const receipt = await r.json().catch(() => null);
     return receipt && typeof receipt === "object" && !Array.isArray(receipt) ? ok({ receipt_id, receipt }) : fail({ error: "malformed_receipt", receipt_id });
   });
-  server.registerTool("genesis402_call", { title: "Call any endpoint", description: `Calls any of the ${CATALOG.size || "360+"} Genesis402 endpoints by name (DeFi, SEC filings, research, web/domain intel, AI text tools, multi-chain reads). Prices $0.001-$0.25 USDC on Base. Use for any endpoint without a dedicated tool; look up the name and parameters with genesis402_catalog first. Parameters are validated for free before any quote. Without payment_signature (or a local payer) it returns the exact price quote and signs nothing; with payment it returns the result plus the settlement details.`, inputSchema: { endpoint: z.string().min(2).max(64).describe("Endpoint name exactly as listed by genesis402_catalog, e.g. \"defi-yields\" or \"wallet-brief\" (a leading slash is ignored)."), params: z.record(z.any()).optional().describe("Parameters for that endpoint as an object, matching the parameter schema shown in genesis402_catalog. Omit if the endpoint takes none."), ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ endpoint, params, payment_signature }) => {
+  server.registerTool("genesis402_call", { title: "Call any endpoint", description: `Calls any of the ${CATALOG.size || "360+"} Genesis402 endpoints by name (DeFi, SEC filings, research, web/domain intel, AI text tools, multi-chain reads). Prices $0.001-$0.25 USDC on Base. Use for any endpoint without a dedicated tool; look up the name and parameters with genesis402_catalog first. Parameters are validated for free before any quote. Without payment_signature (or a local payer) it returns the exact price quote and signs nothing; with payment it returns the result plus the settlement details.`, inputSchema: { endpoint: z.string().min(2).max(64).describe("Endpoint name exactly as listed by genesis402_catalog, e.g. \"defi-yields\" or \"wallet-brief\" (a leading slash is ignored)."), params: z.record(z.any()).optional().describe("Parameters for that endpoint as an object, matching the parameter schema shown in genesis402_catalog. Omit if the endpoint takes none."), ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ endpoint, params, payment_signature, owed_ticket }) => {
     await loadCatalog(); const name = String(endpoint).replace(/^\//, "");
     if (CATALOG_OK && !CATALOG.has(name)) return fail({ error: "unknown_endpoint", endpoint: name, did_you_mean: [...CATALOG.keys()].filter((k) => k.includes(name) || name.includes(k)).slice(0, 8) });
-    return callPaid(name, params || {}, payer, payment_signature);
+    return callPaid(name, params || {}, payer, payment_signature, owed_ticket);
   });
   for (const [tool, endpoint, blurb, schema] of NAMED) {
     if (CATALOG_OK && !CATALOG.has(endpoint)) continue;
-    server.registerTool(tool, { title: TITLES[tool] || tool, description: `${priceTag(endpoint)}. ${blurb} ${PAY_FLOW}`, inputSchema: { ...schema, ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, ...p }) => callPaid(endpoint, p, payer, payment_signature));
+    server.registerTool(tool, { title: TITLES[tool] || tool, description: `${priceTag(endpoint)}. ${blurb} ${PAY_FLOW}`, inputSchema: { ...schema, ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, owed_ticket, ...p }) => callPaid(endpoint, p, payer, payment_signature, owed_ticket));
   }
   return server;
 }

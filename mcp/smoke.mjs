@@ -29,10 +29,12 @@ const unpriced = services.filter((s) => usd(s) == null || Number.isNaN(usd(s)));
 ok("every endpoint has a numeric price", unpriced.length === 0, `${unpriced.length} unpriced`);
 
 // 3. Per-call prices sit in the expected band. Prepaid credit packs
-// (/credits/5, /credits/25) are balance top-ups, not per-call prices.
+// (/credits/5, /credits/25) are balance top-ups, not per-call prices. The ceiling is $1:
+// agent-sold bundles such as the Examiner dossier ($0.75) run above single checks, and
+// anything over $1 per call is far more likely a mispriced manifest than a real product.
 const isCreditPack = (s) => /\/credits\/\d+$/.test(String(s.endpoint || "")) || /^credits-\d+$/.test(String(s.name || ""));
 const prices = services.filter((s) => !isCreditPack(s)).map(usd);
-ok("per-call prices within $0.001–$0.25", Math.min(...prices) >= 0.001 && Math.max(...prices) <= 0.25,
+ok("per-call prices within $0.001–$1", Math.min(...prices) >= 0.001 && Math.max(...prices) <= 1,
   `min ${Math.min(...prices)} max ${Math.max(...prices)}`);
 
 // 4. The endpoints the named tools advertise all exist.

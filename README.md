@@ -100,6 +100,7 @@ Both dialects quote the same price to the same address in the same token. MPP di
 | `genesis402_receipt` | Look up a paid-call receipt by id | Free |
 | `genesis402_call` | Call any of the 360 endpoints by name | Per endpoint |
 | `genesis402_counterparty_report` | Company + registered parents + UN/OFAC/EU/UK sanctions screen, one verdict, signed receipt, branded PDF and public verify page | $0.25 |
+| `genesis402_examiner_dossier` | One person or company: registry record, UN/OFAC/EU/UK name screen and counterparty report in one call, optional Base wallet read; sold by The Examiner (ERC-8004 #96494) | $0.75 |
 | `genesis402_sanctions_name_screen` | One name against the UN, OFAC SDN, EU and UK lists, with list versions cited | $0.02 |
 | `genesis402_company_lookup` | Any company worldwide by name, LEI or SEC CIK (GLEIF + SEC EDGAR), with registered parents | $0.01 |
 | `genesis402_wallet_brief` | Wallet risk signals: sanctions list, 10-chain scan, activity, summary | Paid |
