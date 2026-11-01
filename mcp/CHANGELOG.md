@@ -6,6 +6,8 @@ All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and s
 - Owed deliveries are redeemed instead of stranded. When a paid call settles but the rail cannot deliver, the rail answers with `payment.status: "owed"` and a private `owed_ticket`. The client now re-sends the same signed payment with `X-OWED-TICKET` once, which re-delivers at no extra cost, and returns `made_good: true`. A local payer re-sends the authorization it already signed; nothing new is signed.
 - If that re-delivery also fails, the tool error carries the newest `owed_ticket` (and, for a local payer, the `payment_signature` to re-send). Every paid tool accepts `owed_ticket` together with the original `payment_signature` to redeem later. An `owed_ticket` without its payment is refused locally and nothing is sent.
 - A settled-but-undelivered call reports `paid: true, delivered: false` instead of `paid: false`.
+- New dedicated tool `genesis402_examiner_dossier` (agents/evidence-01/dossier, $0.75, sold by The Examiner, ERC-8004 #96494): registry record, sanctions name screen and counterparty report in one call, with optional jurisdiction check, LEI and Base wallet read. A local payer needs `GENESIS402_MAX_USD` of at least 0.75; the default $0.25 cap refuses it before signing.
+- Smoke test: the per-call price ceiling is $1 (was $0.25), since the rail now sells the $0.75 dossier.
 - `owed-test.mjs`: 16 offline checks against a mock rail, including a real offline EIP-3009 signature from a throwaway key; part of `npm test`.
 
 ## 0.3.10 - 2026-10-06

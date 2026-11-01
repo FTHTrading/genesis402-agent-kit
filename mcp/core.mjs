@@ -234,6 +234,12 @@ const NAMED = [
     "Check one company before you deal with it. Resolves the company in the GLEIF register (name or 20-character LEI), follows its registered direct and ultimate parent, and screens every name in that group against the UN, US OFAC SDN, EU and UK sanctions lists. Returns one verdict (clear, review or stop) with every reason sourced, the registry record, the group screened, the list versions used, an Ed25519-signed receipt, a private link to a branded PDF (7 days) and a public verify page. A vague name (e.g. a bare brand) returns review and names the entity it assumed. Screening and registry signals only: not KYC, not a compliance determination, not legal advice.",
     { query: z.string().min(3).max(200).describe("Company legal name (3 to 200 characters) or its 20-character LEI. The exact legal name or LEI gives the most precise result."),
       type: z.enum(["individual", "entity"]).optional().describe("Optional. Used only when no registry record is found and the name is screened as given.") }],
+  ["genesis402_examiner_dossier", "examiner-dossier",
+    "Full pre-deal check on one person or company in a single call, sold by The Examiner (ERC-8004 agent #96494 on Base): the official registry record (GLEIF, SEC EDGAR), a UN/US OFAC/EU/UK sanctions name screen, and the counterparty report on the entity and its registered parents, plus an optional on-chain read of a Base wallet. Optionally compares the registry jurisdiction with the one you expect. Costs more than the single checks ($0.75), so a local payer needs GENESIS402_MAX_USD of at least 0.75; under the default $0.25 cap it is refused before anything is signed. For the company-and-parents screen alone use genesis402_counterparty_report. Screening and registry signals only: not KYC, not a compliance determination, not legal advice.",
+    { name: z.string().min(3).max(200).describe("The person or company to examine, 3 to 200 characters. The exact legal name gives the most precise result."),
+      jurisdiction: z.string().regex(/^[A-Za-z]{2}(-[A-Za-z0-9]{1,3})?$/).optional().describe("Optional ISO 3166 code such as GB, US or US-DE, compared with the registry record's jurisdiction."),
+      lei: z.string().regex(/^[A-Za-z0-9]{20}$/).optional().describe("Optional 20-character LEI. When given, the registry lookup and the counterparty report use it instead of the name."),
+      wallet: EVM_ADDR.optional().describe("Optional EVM wallet address of the counterparty, 0x followed by 40 hex characters, read on Base.") }],
   ["genesis402_sanctions_name_screen", "sanctions-name-screen",
     "Screen one person or organisation name against the UN, US OFAC SDN, EU and UK consolidated sanctions lists, including aliases and transliterations. Returns match, possible match or no match, each hit with list, list id, matched name and score, and the published date and SHA-256 of every list version used. For a company and its parents in one call use genesis402_counterparty_report; for a wallet address use genesis402_screen_sanctions. Screening signal only: not KYC, not a compliance determination, not legal advice.",
     { name: z.string().min(3).max(200).describe("The person or organisation name to screen, 3 to 200 characters."),
@@ -319,7 +325,7 @@ const TITLES = {
   genesis402_email_check: "Check email or domain deliverability", genesis402_whois: "Look up domain registration (RDAP)",
   genesis402_extract_json: "Extract JSON fields from text", genesis402_web_extract: "Extract text from a web page",
   genesis402_prove: "Issue a signed proof receipt",
-  genesis402_counterparty_report: "Counterparty report: company, parents, sanctions verdict", genesis402_sanctions_name_screen: "Screen a name against UN, OFAC, EU, UK sanctions", genesis402_company_lookup: "Look up a company (GLEIF, SEC)",
+  genesis402_counterparty_report: "Counterparty report: company, parents, sanctions verdict", genesis402_examiner_dossier: "Examiner dossier: registry, sanctions and counterparty in one call", genesis402_sanctions_name_screen: "Screen a name against UN, OFAC, EU, UK sanctions", genesis402_company_lookup: "Look up a company (GLEIF, SEC)",
   genesis402_summarize: "Summarize text", genesis402_answer_from_text: "Answer a question from a document",
   genesis402_translate: "Translate text", genesis402_paper_search: "Search scholarly papers"
 };
