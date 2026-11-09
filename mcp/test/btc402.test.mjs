@@ -70,6 +70,7 @@ async function connect(opts = {}) {
 const call = async (client, name, args) => client.callTool({ name, arguments: args });
 const body = (res) => JSON.parse(res.content[0].text);
 const byName = (checks) => Object.fromEntries(checks.map((c) => [c.name, c]));
+const isGate = (u) => { try { return new URL(u).origin === GATE; } catch { return false; } };
 const sentPayment = () => calls.some((c) => c.headers.has("payment-signature") || c.headers.has("x-payment"));
 
 // ---------------------------------------------------------------------------
@@ -118,7 +119,7 @@ test("quote: a route outside the allow-list is refused before any fetch", async 
   const res = await call(c, "genesis402_btc402_quote", { route: "/lightning" });
   assert.equal(res.isError, true);
   assert.match(res.content[0].text, /invalid/i, "must be an input-validation refusal, not a missing tool");
-  assert.equal(calls.slice(before).some((x) => x.url.startsWith(GATE)), false);
+  assert.equal(calls.slice(before).some((x) => isGate(x.url)), false);
 });
 
 test("quote: a malformed PAYMENT-REQUIRED header is an error, never a quote from the v1 body", async () => {
@@ -192,7 +193,7 @@ test("verify: a digest that is not 64 hex characters is refused before any fetch
     const res = await call(c, "genesis402_btc402_verify_attestation", { digest: bad });
     assert.equal(res.isError, true, `accepted ${bad}`);
     assert.match(res.content[0].text, /invalid/i, `not an input-validation refusal for ${bad}`);
-    assert.equal(calls.slice(before).some((x) => x.url.startsWith(GATE)), false, `fetched for ${bad}`);
+    assert.equal(calls.slice(before).some((x) => isGate(x.url)), false, `fetched for ${bad}`);
   }
 });
 
