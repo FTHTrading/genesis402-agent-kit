@@ -16,10 +16,12 @@
 
 Genesis402: pay-per-call APIs for AI agents over x402.
 
-This is the MCP server for the [Genesis402](https://twin.unykorn.org) rail: **360 pay-per-call
+This is the MCP server for the [Genesis402](https://twin.unykorn.org) rail: **360+ pay-per-call
 endpoints** covering DeFi and market data, SEC financials, wallet and token risk signals from
 public data, web and domain lookups, AI text tools, and multi-chain reads across EVM chains,
-Solana, Bitcoin, Stellar and the XRP Ledger.
+Solana, Bitcoin, Stellar and the XRP Ledger. It also carries tools for UnyKorn's
+[btc402](https://btc402.genesis402.com) Bitcoin node API (block height and fee estimate, each
+response carrying an Ed25519-signed attestation).
 
 Pay only for the call you make: no account, no subscription, no API key.
 Prices from $0.001 per call, shown before you pay. This package pays in USDC on Base via x402 v2.
@@ -37,7 +39,7 @@ The rail sets the price. This client never does; it only decides whether to acce
 ## Hosted endpoint (no install)
 
 Connect any MCP client that supports streamable HTTP to **https://twin.unykorn.org/mcp**. It
-exposes the same 22 tools over every endpoint in the catalog.
+exposes the same 26 tools over every endpoint in the catalog.
 
 - Hosted MCP endpoint at https://twin.unykorn.org/mcp: it holds no keys. A paid tool returns the
   exact x402 quote.
@@ -82,7 +84,7 @@ To let it pay:
 
 Use a dedicated key holding a few dollars of USDC on Base, never your main wallet.
 
-## Tools (14)
+## Tools (26)
 
 Each paid tool's description carries its live price, read from the rail's
 `/.well-known/x402` manifest at startup, so a price change on the rail never leaves this
@@ -93,6 +95,9 @@ client advertising a stale number.
 | `genesis402_catalog` | free | Every endpoint with price, title, path and parameters. Call first. |
 | `genesis402_receipt` | free | A paid-call receipt by id from the public receipts feed. |
 | `genesis402_call` | per endpoint | Call any endpoint in the catalog by name. |
+| `genesis402_counterparty_report` | paid | One company before you deal with it: registered entity, parents, UN/OFAC/EU/UK screening, verdict and signed receipt. |
+| `genesis402_sanctions_name_screen` | paid | One person or organisation name against the UN, US OFAC SDN, EU and UK consolidated lists. |
+| `genesis402_company_lookup` | paid | One company in the official registers (GLEIF, SEC EDGAR). |
 | `genesis402_wallet_brief` | paid | Wallet risk signals in one call: public sanctions-list check, 10-chain scan, activity and summary, with an evidence hash. |
 | `genesis402_token_brief` | paid | Token pre-trade check: metadata, price, holder concentration, source verification, sanctions-list signal. |
 | `genesis402_screen_sanctions` | paid | Public-data sanctions-list signal: OFAC SDN digital-currency entries and community blocklists. |
@@ -109,6 +114,16 @@ client advertising a stale number.
 | `genesis402_answer_from_text` | paid | One answer from your document plus a supporting quote the rail verifies is in the text. |
 | `genesis402_translate` | paid | Translation into any major language; names, numbers and formatting preserved. |
 | `genesis402_paper_search` | paid | OpenAlex scholarly search, by relevance or most-cited, with open-access links. |
+| `genesis402_btc402_quote` | free | Live x402 v2 quote for a btc402 route (`/blockcount` or `/feeestimate`), decoded from its `PAYMENT-REQUIRED` header. |
+| `genesis402_btc402_verify_attestation` | free | Checks a btc402 attestation by digest with the open [btc402-verify](https://github.com/FTHTrading/btc402-verify) code: digest, published key, Ed25519 signature and the Base USDC transfer. Each check is PASS, FAIL or UNAVAILABLE. |
+| `genesis402_btc402_blockcount` | paid | Current Bitcoin mainnet block height from btc402, with a signed attestation. |
+| `genesis402_btc402_feeestimate` | paid | Bitcoin fee estimate (BTC/kvB, confirmation within 6 blocks) from btc402, with a signed attestation. |
+
+The btc402 tools call `https://btc402.genesis402.com` directly rather than the rail. Their price
+comes from the gate's live 402 quote ($0.003 USDC on Base per call at the time of writing; the
+quote is the source). They pay the same way as every other paid tool: quote first, then a
+`payment_signature` you signed, or a local payer under `GENESIS402_MAX_USD`. You can also pay
+btc402 with any x402 v2 client and no MCP at all.
 
 ## How a paid call works
 
@@ -126,6 +141,10 @@ One payment buys exactly one execution; re-presenting it returns 409.
 - Risk and sanctions results are automated heuristic signals from public data. They are not
   KYC, not a compliance determination, and not legal advice. Absence from every list is not a
   clearance.
+- A btc402 `VERIFIED` result shows the record was issued by the btc402 service key, has not
+  been changed since, and matches its Base USDC transfer. It is not an on-chain registry entry,
+  an external timestamp or a third-party audit. Records issued before Ed25519 signing began
+  carry no signature and come back `NOT VERIFIED`.
 - `prove` records a claim; it does not evaluate it. The receipt chain is **not externally
   anchored**: a valid receipt shows the rail issued it and has not altered it, not that the
   rail could not have back-dated its own chain.
@@ -137,6 +156,8 @@ One payment buys exactly one execution; re-presenting it returns 409.
 | `GENESIS402_ORIGIN` | `https://twin.unykorn.org` | Rail origin. |
 | `GENESIS402_LIVE` | unset | `1` enables payment. Anything else is quote-only. |
 | `GENESIS402_PAYER_KEY` | unset | Private key that funds calls. Required for live mode. |
+| `BTC402_ORIGIN` | `https://btc402.genesis402.com` | btc402 gate origin for the `genesis402_btc402_*` tools. |
+| `BTC402_BASE_RPC` | `https://mainnet.base.org` | Public Base RPC used to read the attestation's USDC transfer. |
 | `GENESIS402_MAX_USD` | `0.25` | Hard cap per call, checked against the quote and again when signing. Quotes above it are refused; a zero, negative or non-numeric value keeps the server quote-only. |
 
 ## Community
@@ -146,6 +167,7 @@ Questions, feedback and a free counterparty report (`/check`): [UnyKorn Discord]
 ## Testing
 
 ```bash
+node --test test/btc402.test.mjs  # offline: btc402 tools against stubs, nothing leaves the machine
 node smoke.mjs      # read-only checks against the live rail; never pays
 node boot-test.mjs  # boots over stdio and lists the tools a client would see
 ```

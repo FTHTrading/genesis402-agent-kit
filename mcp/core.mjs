@@ -14,8 +14,10 @@ import { z } from "zod";
 import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
+import { verifyAttestation } from "./vendor/btc402-verify/src/verify.mjs";
+import { fetchUsdcTransfer, matchSettlement, timeoutMs as btc402Timeout } from "./vendor/btc402-verify/src/chain.mjs";
 
-export const VERSION = "0.3.10";
+export const VERSION = "0.3.11";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -119,6 +121,135 @@ async function callPaid(name, params, payer, paymentSignature) {
   return res.ok ? ok({ mode: "PAID", paid: true, price: quote, settlement, result: body }) : fail({ status: res.status, paid: false, ...body });
 }
 
+// ---------------------------------------------------------------------------
+// btc402: UnyKorn's pay-per-call Bitcoin node API (https://btc402.genesis402.com), GET only.
+// Same payment model as callPaid: quote by default, a payment the CALLER signed, or a local payer
+// with its own key and cap. Differences, because btc402 is a plain x402 v2 HTTP gate:
+//   - GET, no params, no /__validate (the routes take no input).
+//   - The quote comes ONLY from the v2 PAYMENT-REQUIRED header. The v1 body is never used as a
+//     fallback, so a malformed header is an error rather than a guess.
+//   - A caller-signed payment is sent as PAYMENT-SIGNATURE only (v2), not also as v1 X-PAYMENT.
+// Verification reuses the public MIT verifier github.com/FTHTrading/btc402-verify, vendored unchanged
+// in vendor/btc402-verify (see SOURCE.json for the commit and file hashes).
+// ---------------------------------------------------------------------------
+const BTC402 = (process.env.BTC402_ORIGIN || "https://btc402.genesis402.com").replace(/\/$/, "");
+const BTC402_RPC = process.env.BTC402_BASE_RPC || "https://mainnet.base.org";
+const BTC402_ROUTES = ["/blockcount", "/feeestimate"];
+
+function decodeV2Header(res) {
+  const h = res.headers.get("payment-required");
+  if (!h) return null;
+  try {
+    const j = JSON.parse(Buffer.from(h, "base64").toString("utf8"));
+    return j && typeof j === "object" && Array.isArray(j.accepts) ? j : null;
+  } catch { return null; }
+}
+const btc402Lane = (ch) => (ch?.accepts || []).find((x) => x.network === BASE && String(x.asset).toLowerCase() === BASE_USDC) || null;
+const unreachable = (url, e) => fail({ error: "gate_unreachable", resource: url, message: String(e?.message || e).slice(0, 300) });
+async function settlementOf(res) {
+  const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
+  if (!pr) return null;
+  try { return decodePaymentResponseHeader(pr); } catch { return null; }
+}
+
+// Probe one route unpaid. Returns { res, url } or { error } (an MCP fail result).
+async function btc402Probe(route) {
+  const url = BTC402 + route;
+  try { return { url, res: await fetch(url, { method: "GET" }) }; }
+  catch (e) { return { url, error: unreachable(url, e) }; }
+}
+
+async function btc402Quote(route) {
+  const { url, res, error } = await btc402Probe(route);
+  if (error) return error;
+  if (res.status !== 402) { const b = await res.json().catch(() => null); return fail({ error: "not_a_402", status: res.status, resource: url, body: b }); }
+  const ch = decodeV2Header(res);
+  if (!ch) return fail({ error: "malformed_payment_required", resource: url, message: "the 402 carried no decodable x402 v2 PAYMENT-REQUIRED header (base64 JSON with accepts[])" });
+  const lane = btc402Lane(ch);
+  if (!lane) return fail({ error: "no_base_usdc_lane", resource: url, networks: ch.accepts.map((a) => a.network) });
+  let atomic;
+  try { atomic = BigInt(lane.amount ?? lane.maxAmountRequired); } catch { return fail({ error: "malformed_payment_required", resource: url, message: "amount is not an integer" }); }
+  return ok({
+    route, resource: ch.resource?.url || url, x402_version: ch.x402Version, scheme: lane.scheme,
+    price: { atomic: atomic.toString(), usd: Number(atomic) / 1e6, network: lane.network, asset: lane.asset, payTo: lane.payTo },
+    max_timeout_seconds: lane.maxTimeoutSeconds, description: ch.resource?.description,
+    payment_required_b64: res.headers.get("payment-required"),
+    how_to_pay: `Sign an x402 v2 payment for this quote with your own wallet and send it as the PAYMENT-SIGNATURE header on GET ${url}, or pass it as payment_signature to genesis402_btc402_${route.slice(1)}. Nothing was signed or charged for this quote.`
+  });
+}
+
+async function callBtc402(route, payer, paymentSignature) {
+  const url = BTC402 + route;
+  if (paymentSignature) {
+    let res;
+    try { res = await fetch(url, { method: "GET", headers: { "PAYMENT-SIGNATURE": paymentSignature } }); }
+    catch (e) { return unreachable(url, e); }
+    const body = await res.json().catch(() => null);
+    return res.ok ? ok({ mode: "PAID", paid: true, price: null, settlement: await settlementOf(res), result: body }) : fail({ status: res.status, paid: false, ...body });
+  }
+  const { res: probe, error } = await btc402Probe(route);
+  if (error) return error;
+  if (probe.status !== 402) { const b = await probe.json().catch(() => null); return probe.ok ? ok({ mode: "FREE", paid: false, result: b }) : fail({ status: probe.status, ...b }); }
+  const challenge = decodeV2Header(probe);
+  if (!challenge) return fail({ error: "malformed_payment_required", resource: url });
+  const quote = baseQuote(challenge);
+  if (!payer) {
+    return ok({
+      mode: "QUOTE_ONLY", paid: false, resource: url, price: quote,
+      also_accepted_networks: challenge.accepts.map((a) => a.network),
+      what_you_get: challenge.resource?.description,
+      payment_required_b64: probe.headers.get("payment-required"),
+      how_to_pay: "Sign an x402 v2 payment for this quote with your own wallet (e.g. @x402/fetch, Coinbase AgentKit/CDP wallet) and call this tool again with payment_signature=<the PAYMENT-SIGNATURE header value>. Or call GET " + url + " directly with any x402 v2 client. This server never holds your keys."
+    });
+  }
+  if (!quote) return fail({ error: "no_base_usdc_lane" });
+  if (quote.usd > payer.maxUsd) return fail({ error: "price_above_cap", quote, cap_usd: payer.maxUsd });
+  let res;
+  try { res = await payer.paidFetch(url, { method: "GET" }); }
+  catch (e) { return fail({ error: "payment_not_made", message: String(e?.message || e).slice(0, 300), quote, cap_usd: payer.maxUsd }); }
+  const body = await res.json().catch(() => null);
+  return res.ok ? ok({ mode: "PAID", paid: true, price: quote, settlement: await settlementOf(res), result: body }) : fail({ status: res.status, paid: false, ...body });
+}
+
+// Same flow as btc402-verify's src/verify-run.mjs, returning the structured checks.
+// A check that could not run is UNAVAILABLE; the verdict is VERIFIED only when every check is PASS.
+async function btc402VerifyAttestation(digest) {
+  const d = digest.toLowerCase();
+  const checks = [];
+  const add = (name, result, detail) => checks.push({ name, result, detail });
+  const getJson = async (url) => {
+    const r = await fetch(url, { signal: AbortSignal.timeout(btc402Timeout()) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  };
+  const recordUrl = `${BTC402}/attestations/${d}`;
+  let rec = null;
+  try { rec = await getJson(recordUrl); } catch (e) { add("attestation", "UNAVAILABLE", `could not load attestation: ${e.message}`); }
+  if (rec && (typeof rec !== "object" || Array.isArray(rec))) { add("attestation", "UNAVAILABLE", "attestation is not a JSON object"); rec = null; }
+  if (rec) {
+    const same = String(rec.digest).toLowerCase() === d;
+    add("requested_digest", same ? "PASS" : "FAIL", same ? "served record digest equals the requested digest" : `requested ${d}, server returned a record with digest ${rec.digest}`);
+    let key = null;
+    try { key = await getJson(`${BTC402}/attestations/key`); } catch (e) { add("published_key", "UNAVAILABLE", `could not fetch key: ${e.message}`); }
+    let history = null;
+    try { history = await getJson(`${BTC402}/attestations/keys`); } catch { /* reported by the key checks */ }
+    checks.push(...verifyAttestation(rec, key, history).checks);
+    const tx = rec.execution?.transaction_hash;
+    try {
+      const transfer = tx ? await fetchUsdcTransfer(tx, { rpc: BTC402_RPC, fetchImpl: (...a) => fetch(...a), timeoutMs: btc402Timeout() }) : null;
+      checks.push(...matchSettlement(rec, transfer));
+    } catch (e) {
+      for (const n of ["tx_success", "payer", "pay_to", "amount"]) add(n, "UNAVAILABLE", `chain read failed: ${e.message}`);
+    }
+  }
+  const okAll = checks.length > 0 && checks.every((c) => c.result === "PASS");
+  return {
+    digest: d, ok: okAll, verdict: okAll ? "VERIFIED" : "NOT VERIFIED", record_url: recordUrl,
+    checks: checks.map(({ name, result, detail, reason }) => ({ name, result, detail: String(detail ?? ""), ...(reason ? { reason } : {}) })),
+    scope: "A valid signature shows the record was issued by the btc402 service key and has not been changed since. The settlement checks compare the record with the Base USDC transfer read from a public RPC. It is not an on-chain registry entry, an external timestamp or a third-party audit."
+  };
+}
+
 export function localPayerFromEnv() {
   const key = process.env.GENESIS402_PAYER_KEY || "";
   if (process.env.GENESIS402_LIVE !== "1" || !key) return null;
@@ -172,6 +303,38 @@ const CATALOG_OUTPUT = {
 const RECEIPT_OUTPUT = {
   receipt_id: z.string().describe("The id that was looked up."),
   receipt: z.record(z.any()).describe("The receipt exactly as published on the rail's receipts feed.")
+};
+
+const BTC402_ROUTE = z.enum(["/blockcount", "/feeestimate"]);
+const BTC402_QUOTE_OUTPUT = {
+  route: BTC402_ROUTE.describe("The btc402 route quoted."),
+  resource: z.string().describe("Full URL of the paid resource, from the PAYMENT-REQUIRED header."),
+  x402_version: z.number().int().optional().describe("x402 protocol version of the challenge (2)."),
+  scheme: z.string().optional().describe("x402 payment scheme, e.g. exact."),
+  price: z.object({
+    atomic: z.string().describe("Price in USDC atomic units (6 decimals), as a decimal string, e.g. 3000."),
+    usd: z.number().describe("Price in US dollars, e.g. 0.003."),
+    network: z.string().describe("CAIP-2 network id, eip155:8453 (Base)."),
+    asset: z.string().describe("Token contract of the lane (Base USDC)."),
+    payTo: z.string().describe("Address the payment settles to.")
+  }).describe("The Base USDC lane of the quote."),
+  max_timeout_seconds: z.number().optional().describe("How long a signed payment stays valid, in seconds."),
+  description: z.string().optional().describe("The gate's description of what the payment buys."),
+  payment_required_b64: z.string().describe("The raw base64 PAYMENT-REQUIRED header, to sign with any x402 v2 client."),
+  how_to_pay: z.string().describe("How to sign and send the payment.")
+};
+const BTC402_VERIFY_OUTPUT = {
+  digest: z.string().describe("The digest checked, lowercase hex."),
+  ok: z.boolean().describe("true only when every check is PASS."),
+  verdict: z.enum(["VERIFIED", "NOT VERIFIED"]).describe("VERIFIED only when every check is PASS; any FAIL or UNAVAILABLE gives NOT VERIFIED."),
+  record_url: z.string().describe("Where the attestation was fetched."),
+  checks: z.array(z.object({
+    name: z.string().describe("Check name, e.g. digest, signature, key_matches_published, tx_success, payer, pay_to, amount."),
+    result: z.enum(["PASS", "FAIL", "UNAVAILABLE"]).describe("PASS, FAIL, or UNAVAILABLE when the check could not run."),
+    detail: z.string().describe("What was compared or why the check could not run."),
+    reason: z.string().optional().describe("Machine-readable reason for key-history outcomes.")
+  })).describe("Every check that ran or could not run, in order."),
+  scope: z.string().describe("What a VERIFIED result does and does not show.")
 };
 
 const EVM_ADDR = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
@@ -276,7 +439,8 @@ const PAY_ARG = { payment_signature: z.string().max(8000).optional().describe("O
 const INSTRUCTIONS = [
   "Genesis402 by UnyKorn: 360+ pay-per-call data and tool endpoints for agents, settled per call in USDC on Base over x402 ($0.001 to $0.25 each). No accounts or API keys.",
   "Pick a tool: use a dedicated genesis402_* tool when one fits (counterparty checks on a company and its parents, sanctions screening of names or addresses, company lookup, multi-chain balances, DeFi yields, SEC financials, email and domain checks, web page text, JSON extraction, summaries, answers from a document, translation, scholarly paper search, signed proofs). For anything else, search genesis402_catalog (free) by keyword, then call the endpoint by name with genesis402_call.",
-  "Payment: genesis402_catalog and genesis402_receipt are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call.",
+  "Bitcoin node data: genesis402_btc402_blockcount (current Bitcoin mainnet block height) and genesis402_btc402_feeestimate (fee estimate) call UnyKorn's btc402 API at https://btc402.genesis402.com. genesis402_btc402_quote shows their live price for free, and genesis402_btc402_verify_attestation checks, for free, the Ed25519-signed attestation each paid btc402 response carries.",
+  "Payment: genesis402_catalog, genesis402_receipt, genesis402_btc402_quote and genesis402_btc402_verify_attestation are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call.",
   "Parameters are validated for free before any quote, so fix invalid_input errors before asking for payment. Risk and sanctions outputs are heuristic signals from public data, not KYC, compliance determinations, legal or investment advice; say so when you relay them."
 ].join("\n\n");
 
@@ -303,6 +467,19 @@ export async function createServer({ payer = null, hosted = false } = {}) {
   for (const [tool, endpoint, blurb, schema] of NAMED) {
     if (CATALOG_OK && !CATALOG.has(endpoint)) continue;
     server.registerTool(tool, { title: TITLES[tool] || tool, description: `${priceTag(endpoint)}. ${blurb} ${PAY_FLOW}`, inputSchema: { ...schema, ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, ...p }) => callPaid(endpoint, p, payer, payment_signature));
+  }
+
+  // btc402 (https://btc402.genesis402.com): registered whatever the rail catalog says.
+  server.registerTool("genesis402_btc402_quote", { title: "btc402: live x402 quote for a Bitcoin node route (free)", description: "Free, no payment, read-only. Returns the live x402 v2 price quote for one btc402 Bitcoin node route on https://btc402.genesis402.com: /blockcount (current Bitcoin mainnet block height) or /feeestimate (fee estimate in BTC/kvB for confirmation within 6 blocks). The quote is decoded from the gate's PAYMENT-REQUIRED header: price in USDC atomic units and USD, network eip155:8453 (Base), the Base USDC asset, the payTo address and the resource URL. Use it to show the price before paying with genesis402_btc402_blockcount or genesis402_btc402_feeestimate, or with any x402 v2 client. A missing or malformed header, or a quote with no Base USDC lane, is returned as an error, never guessed. Nothing is signed or charged.", inputSchema: { route: BTC402_ROUTE.describe("The btc402 route to quote: \"/blockcount\" or \"/feeestimate\".") }, outputSchema: BTC402_QUOTE_OUTPUT, annotations: ro }, async ({ route }) => btc402Quote(route));
+
+  server.registerTool("genesis402_btc402_verify_attestation", { title: "btc402: verify a signed attestation (free)", description: "Free, no payment, read-only. Every paid btc402 response carries an Ed25519-signed attestation with a 64-hex digest. Give that digest and this tool fetches https://btc402.genesis402.com/attestations/<digest>, the published key (/attestations/key) and key history (/attestations/keys), and checks it with the open MIT verifier github.com/FTHTrading/btc402-verify: the served record matches the requested digest, sha256 of its canonical bytes equals the digest, the signing key is the published key (or a retired key inside its validity window), the Ed25519 signature verifies, and the Base USDC transfer in the record's transaction succeeded with the stated payer, recipient and amount (read from a public Base RPC). Returns each check as PASS, FAIL or UNAVAILABLE (could not run) and a verdict: VERIFIED only when every check is PASS. Records issued before Ed25519 signing began carry no signature and come back NOT VERIFIED.", inputSchema: { digest: z.string().regex(/^[0-9a-fA-F]{64}$/, "digest must be 64 hex characters").describe("The attestation digest: 64 hex characters, as returned in attestation.digest of a paid btc402 response.") }, outputSchema: BTC402_VERIFY_OUTPUT, annotations: ro }, async ({ digest }) => ok(await btc402VerifyAttestation(digest)));
+
+  const BTC402_PAID = [
+    ["genesis402_btc402_blockcount", "/blockcount", "btc402: Bitcoin block height", "Current Bitcoin mainnet block height from UnyKorn's btc402 node API (GET https://btc402.genesis402.com/blockcount)."],
+    ["genesis402_btc402_feeestimate", "/feeestimate", "btc402: Bitcoin fee estimate", "Bitcoin fee estimate in BTC/kvB for confirmation within 6 blocks, from UnyKorn's btc402 node API (GET https://btc402.genesis402.com/feeestimate)."]
+  ];
+  for (const [tool, route, title, blurb] of BTC402_PAID) {
+    server.registerTool(tool, { title, description: `Paid (price from the live 402 quote; genesis402_btc402_quote shows it for free). ${blurb} The result carries an Ed25519-signed attestation; check it for free with genesis402_btc402_verify_attestation and its digest. ${PAY_FLOW}`, inputSchema: { ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature }) => callBtc402(route, payer, payment_signature));
   }
   return server;
 }

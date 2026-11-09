@@ -16,6 +16,7 @@ COPY mcp/package.json mcp/package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY mcp/index.mjs mcp/core.mjs mcp/http.mjs mcp/README.md ./
+COPY mcp/vendor ./vendor
 
 USER node
 

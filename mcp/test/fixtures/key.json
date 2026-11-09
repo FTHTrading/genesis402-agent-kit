@@ -1,0 +1,15 @@
+{
+  "alg": "Ed25519",
+  "key_id": "btc402-attest-e9a06d20f619493c",
+  "public_key_hex": "1d71e070f4a505aea224f50240e76657f48bc2800c4a079384907116ed9b840d",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAHXHgcPSlBa6iJPUCQOdmV/SLwoAMSgeThJBxFu2bhA0=\n-----END PUBLIC KEY-----\n",
+  "standard": "btc402-attestation-v2",
+  "how_to_verify": [
+    "Fetch the attestation: GET /attestations/<digest>.",
+    "Remove the fields digest, ed25519, internal_hmac_sha256, signature.",
+    "Serialize the rest as JSON with keys sorted at every level, separators ',' and ':', no whitespace, non-ASCII escaped as \\uXXXX, UTF-8.",
+    "sha256 of those bytes must equal 'digest'.",
+    "ed25519.sig_hex must verify over those same bytes with public_key_hex, and public_key_hex must equal the key published here."
+  ],
+  "scope": "A valid signature shows this record was issued by the btc402 service key and has not been changed since. It is not an on-chain ERC-8004 registry entry, not an external timestamp and not a third-party audit. Records issued before 2026-11-08 carry only an internal HMAC and cannot be verified with this key."
+}

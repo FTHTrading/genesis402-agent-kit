@@ -1,7 +1,7 @@
 {
   "name": "genesis402-mcp",
-  "version": "0.3.10",
-  "description": "Genesis402 by UnyKorn: counterparty checks (company, registered parents, UN/OFAC/EU/UK sanctions, signed and verifiable), sanctions name screening and company lookup, plus 360+ pay-per-call APIs for AI agents over x402 and MPP (USDC on Base). DeFi and market data, multi-chain reads, wallet and token risk signals, SEC financials, web and domain intel, AI text tools. Quote-only by default; hosted at https://twin.unykorn.org/mcp.",
+  "version": "0.3.11",
+  "description": "Genesis402 by UnyKorn: counterparty checks (company, registered parents, UN/OFAC/EU/UK sanctions, signed and verifiable), sanctions name screening and company lookup, plus 360+ pay-per-call APIs for AI agents over x402 and MPP (USDC on Base). DeFi and market data, multi-chain reads, wallet and token risk signals, SEC financials, web and domain intel, AI text tools, and btc402 Bitcoin node data (block height, fee estimate) with Ed25519-signed attestations. Quote-only by default; hosted at https://twin.unykorn.org/mcp.",
   "keywords": [
     "mcp",
     "x402",
@@ -13,6 +13,8 @@
     "stellar",
     "solana",
     "bitcoin",
+    "btc402",
+    "bitcoin-node",
     "evm",
     "rpc",
     "risk",
@@ -62,7 +64,10 @@
     "index.d.ts",
     "core.mjs",
     "http.mjs",
-    "index.mjs"
+    "index.mjs",
+    "vendor/btc402-verify/LICENSE",
+    "vendor/btc402-verify/SOURCE.json",
+    "vendor/btc402-verify/src/"
   ],
   "sideEffects": [
     "./index.mjs",
@@ -72,7 +77,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --check core.mjs && node --check http.mjs && node --check index.mjs && node boot-test.mjs && node smoke.mjs"
+    "test": "node --check core.mjs && node --check http.mjs && node --check index.mjs && node --test test/btc402.test.mjs && node boot-test.mjs && node smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",

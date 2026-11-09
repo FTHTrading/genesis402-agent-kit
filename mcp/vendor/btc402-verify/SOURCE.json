@@ -1,0 +1,16 @@
+{
+  "repository": "https://github.com/FTHTrading/btc402-verify",
+  "commit": "2e25dea5bf5c96cc3d3be54f0753e78e4f10bced",
+  "version": "0.1.0",
+  "license": "MIT",
+  "note": "Copied unchanged from the upstream commit. Do not edit here: change upstream, re-copy, and update these hashes (sha256 of the file with LF line endings). The MCP tool genesis402_btc402_verify_attestation calls verifyAttestation (src/verify.mjs) and fetchUsdcTransfer/matchSettlement (src/chain.mjs) in the same order as upstream src/verify-run.mjs.",
+  "sha256": {
+    "LICENSE": "cbe0502fe6b317b0783249133adb58d553983accd0b5708bfc5d28f5637226cd",
+    "src/canonical-core.mjs": "670091559309b3b497fc2f7644c6a415e0e3351c4a633b4441e80d0e1fe23814",
+    "src/canonical.mjs": "1565c9db261aff2bb3b8a13ae5e575c77385262c1635b9ce8d7a5f001fcc55a0",
+    "src/chain-core.mjs": "d3c0680f9db3c01c0a8a7bfff998bdb6d54eaa24b39e48a6138cd7c71dc549ee",
+    "src/chain.mjs": "204d214a177edecaf12e9e0ccad29b25b8590f7fe6786758868e2740b53d7e8d",
+    "src/key-history-core.mjs": "0af22b21da6d558cbffc5238ab54fb6771730818908fe98dcda60ec66ff17535",
+    "src/verify.mjs": "b959896434f03d7d5af69d852ac89f6e90e546ddbd44c8067eaeea30edcca3f8"
+  }
+}
