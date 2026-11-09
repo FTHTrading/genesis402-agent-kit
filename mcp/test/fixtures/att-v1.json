@@ -1,0 +1,32 @@
+{
+  "authority": {
+    "agent_id": 95721,
+    "identity_registry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    "name": "btc402 / UnyKorn Sovereign AI Validation Authority",
+    "network": "Base Mainnet (8453)",
+    "pay_to": "0x7d9a65d06dcc435a52D5880C6310Bd6E96c156DB",
+    "reputation_registry": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"
+  },
+  "digest": "80d0ebce28ec848d43a324e39efc0fbd66147da13981e704b9b45cf71fec6641",
+  "execution": {
+    "action": "bitcoin_mainnet_state_verification",
+    "amount_paid": "3000",
+    "bitcoin_block_tip": 975052,
+    "dispute_status": "CLEARED_NO_DISPUTE",
+    "endpoint": "/blockcount",
+    "iso_time": "2026-11-08T10:47:40Z",
+    "settlement_rail": "x402",
+    "timestamp": 1794134860,
+    "transaction_hash": "0xc9a8c762d56ce25fa9635d65fd531743348e49cafd57e7b1e15f15675807420a",
+    "unit": "usdc_atomic"
+  },
+  "signature": "5c9470c8b80c361fe254a6439292429077a6a28e47e57988e25e70e3161e6c92",
+  "standard": "ERC-8004-VALIDATION-v1",
+  "subject": {
+    "agent_wallet": "0x710CbD5b3Ee298Bb3e1FA9a231239EDe615A7ab9",
+    "reputation_score": 45,
+    "reputation_status": "NEW_UNVERIFIED",
+    "reputation_tier": 3
+  },
+  "v": 1
+}

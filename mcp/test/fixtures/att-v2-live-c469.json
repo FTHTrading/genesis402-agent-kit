@@ -1,0 +1,40 @@
+{
+  "authority": {
+    "agent_id": 95721,
+    "identity_registry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    "name": "btc402 / UnyKorn Sovereign AI Validation Authority",
+    "network": "Base Mainnet (8453)",
+    "pay_to": "0x7d9a65d06dcc435a52D5880C6310Bd6E96c156DB",
+    "reputation_registry": "0x8004BAa17C55a88189AE136b182e5fdA19dE9b63"
+  },
+  "digest": "db03f51b95bd74956f9337a0068de244018fa189c2037070db0c04d5f52515f4",
+  "ed25519": {
+    "key_id": "btc402-attest-e9a06d20f619493c",
+    "public_key_hex": "1d71e070f4a505aea224f50240e76657f48bc2800c4a079384907116ed9b840d",
+    "sig_hex": "4b06100765c4212d0b419cf3d88fdd0cd7ef8b7e5630edde9db577737fac4cbe62000efdc89b0f9304d5032cdc71d76e11473b2eeffc824c21eb5d0f238e3b0a"
+  },
+  "execution": {
+    "action": "bitcoin_mainnet_state_verification",
+    "amount_paid": "3000",
+    "bitcoin_block_tip": 975053,
+    "endpoint": "/blockcount",
+    "iso_time": "2026-11-08T11:10:19Z",
+    "settlement_rail": "x402",
+    "timestamp": 1794136219,
+    "transaction_hash": "0xc469a7b1abff8441f34cdb85440e1452965ca4942f7ba965813657c51407f179",
+    "unit": "usdc_atomic"
+  },
+  "signing_key": {
+    "alg": "Ed25519",
+    "key_id": "btc402-attest-e9a06d20f619493c",
+    "published_at": "/attestations/key"
+  },
+  "standard": "btc402-attestation-v2",
+  "subject": {
+    "agent_wallet": "0x710CbD5b3Ee298Bb3e1FA9a231239EDe615A7ab9",
+    "reputation_score": 75,
+    "reputation_status": "ACTIVE_CALLER",
+    "reputation_tier": 2
+  },
+  "v": 2
+}
