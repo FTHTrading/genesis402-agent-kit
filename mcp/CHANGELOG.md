@@ -2,6 +2,15 @@
 
 All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and signed on GitHub Actions (SLSA provenance) and published to npm and the MCP Registry by `.github/workflows/release-mcp.yml`.
 
+## 0.3.11 - 2026-11-08 (prepared, not published)
+- Four tools for UnyKorn's btc402 Bitcoin node API at `https://btc402.genesis402.com` (26 tools total):
+  - `genesis402_btc402_quote` (free): the live x402 v2 quote for `/blockcount` or `/feeestimate`, decoded from the `PAYMENT-REQUIRED` header. A missing or malformed header is an error; the v1 body is never used as a fallback.
+  - `genesis402_btc402_verify_attestation` (free): checks an attestation by its 64-hex digest with the public MIT verifier `FTHTrading/btc402-verify` (vendored unchanged in `vendor/btc402-verify`, commit and file hashes in `SOURCE.json`). Returns every check as PASS, FAIL or UNAVAILABLE; the verdict is VERIFIED only when all are PASS.
+  - `genesis402_btc402_blockcount` and `genesis402_btc402_feeestimate` (paid, price from the live quote): same payment model as the other paid tools. A caller-signed payment is sent as `PAYMENT-SIGNATURE` only.
+- Offline test suite `test/btc402.test.mjs` (stubbed network, nothing signed or paid), run by `npm test`.
+- README: tool table lists all 26 tools (it had said 14 and omitted the three compliance tools added in 0.3.8); endpoint count reads 360+.
+- Dockerfile copies `vendor/` so the image (and Glama's build) includes the verifier.
+
 ## 0.3.10 - 2026-10-06
 - Server instructions, the `genesis402_call` description and the listing descriptions say "360+" endpoints instead of a fixed 360 (the live catalog lists 367).
 
