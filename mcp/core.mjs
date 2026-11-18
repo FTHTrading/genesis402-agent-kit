@@ -39,6 +39,8 @@ const resolveSeller = (challenge) => {
 };
 // A receipt that names its seller (seller_agent_id, seller_wallet, seller_registry) is reported with that seller, not the rail default.
 const receiptSeller = (r) => (r && Number.isFinite(Number(r.seller_agent_id)) ? { seller: { agent_id: Number(r.seller_agent_id), registry: r.seller_registry, pay_to: r.seller_wallet } } : null);
+// A route the manifest lists with its own seller (a desk-sold route) keeps that seller on paths that have no 402 in hand (payment_signature, FREE).
+const routeSeller = (name) => { const s = CATALOG.get(name); return s && s.seller ? { seller: s.seller } : null; };
 const receiptsUrl = (seller) => seller.receipts || `${ORIGIN}/receipts`;
 const withSeller = (obj, challenge) => { const seller = resolveSeller(challenge); return { ...obj, seller, receipts_url: receiptsUrl(seller) }; };
 
@@ -113,12 +115,12 @@ async function callPaid(name, params, payer, paymentSignature) {
     const body = await res.json().catch(() => null);
     let settlement = null; const pr = res.headers.get("payment-response") || res.headers.get("x-payment-response");
     if (pr) { try { settlement = decodePaymentResponseHeader(pr); } catch {} }
-    return res.ok ? ok(withSeller({ mode: "PAID", paid: true, price: null, settlement, result: body }, null)) : fail({ status: res.status, paid: false, ...body });
+    return res.ok ? ok(withSeller({ mode: "PAID", paid: true, price: null, settlement, result: body }, routeSeller(name))) : fail({ status: res.status, paid: false, ...body });
   }
 
   const probe = await fetch(url, init);
   const probeBody = await probe.json().catch(() => null);
-  if (probe.status !== 402) return probe.ok ? ok(withSeller({ mode: "FREE", paid: false, result: probeBody }, null)) : fail({ status: probe.status, ...probeBody });
+  if (probe.status !== 402) return probe.ok ? ok(withSeller({ mode: "FREE", paid: false, result: probeBody }, routeSeller(name))) : fail({ status: probe.status, ...probeBody });
   const challenge = decodeChallenge(probe, probeBody);
   const quote = baseQuote(challenge);
 
