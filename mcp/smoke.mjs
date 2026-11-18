@@ -32,7 +32,8 @@ ok("every endpoint has a numeric price", unpriced.length === 0, `${unpriced.leng
 // (/credits/5, /credits/25) are balance top-ups, not per-call prices.
 const isCreditPack = (s) => /\/credits\/\d+$/.test(String(s.endpoint || "")) || /^credits-\d+$/.test(String(s.name || ""));
 const prices = services.filter((s) => !isCreditPack(s)).map(usd);
-ok("per-call prices within $0.001–$0.25", Math.min(...prices) >= 0.001 && Math.max(...prices) <= 0.25,
+// Ceiling raised 2026-11-18: desk-agent routes are priced above $0.25 on purpose (The Examiner dossier $0.75, rich-task $0.50).
+ok("per-call prices within $0.001–$1.00", Math.min(...prices) >= 0.001 && Math.max(...prices) <= 1.00,
   `min ${Math.min(...prices)} max ${Math.max(...prices)}`);
 
 // 4. The endpoints the named tools advertise all exist.

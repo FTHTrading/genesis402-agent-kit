@@ -2,7 +2,11 @@
 
 All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and signed on GitHub Actions (SLSA provenance) and published to npm and the MCP Registry by `.github/workflows/release-mcp.yml`.
 
-## 0.3.11 - 2026-11-17 (prepared, not published)
+## 0.3.12 - 2026-11-18
+
+Same content as 0.3.11 (never published: the release smoke check capped per-call prices at $0.25 while desk-agent routes are priced up to $0.75 on purpose). Smoke ceiling raised to $1.00.
+
+## 0.3.11 - 2026-11-17 (not published)
 - Seller identity: every tool result carries `seller` (ERC-8004 agent id, registry, chain, pay_to, source) and `receipts_url`; the `seller` block is the rail's own when it names one (402 first, then /.well-known/x402), else the package default (agent 95721 on Base, `source: "package"`). A desk seller named by the rail is never replaced. Prices and payTo are untouched.
 - Server instructions, README, `server.json` description and `_meta` name agent 95721, the registry address and the receipts feed.
 - `genesis402_receipt` reports the seller recorded in the receipt when it has one.
