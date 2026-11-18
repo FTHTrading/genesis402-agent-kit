@@ -34,6 +34,19 @@ set *both* `GENESIS402_LIVE=1` and `GENESIS402_PAYER_KEY`. Even then, any quote 
 
 The rail sets the price. This client never does; it only decides whether to accept it.
 
+## Seller identity and receipts
+
+Every call is sold by the Genesis402 rail, **ERC-8004 agent 95721 on Base** (IdentityRegistry
+`0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`, registration file
+`https://twin.unykorn.org/.well-known/agent-registration.json`, storefront https://genesis402.com).
+
+- The rail names its seller in the 402 challenge and in `/.well-known/x402`. This package passes that block through
+  unchanged: every tool result carries `seller` (agent id, registry, chain, pay_to) and `receipts_url`.
+- A route sold by a desk agent names that agent (for example 96494 for the dossier) and its own wallet; it is never relabelled.
+- If the rail names no seller, the result carries this package's default (agent 95721) with `seller.source` set to `package`
+  instead of `rail`. The identity is information only: it never changes a price or a payTo.
+- Signed receipts for paid calls are listed at https://twin.unykorn.org/receipts; `genesis402_receipt` fetches one by id.
+
 ## Hosted endpoint (no install)
 
 Connect any MCP client that supports streamable HTTP to **https://twin.unykorn.org/mcp**. It

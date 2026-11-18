@@ -2,6 +2,13 @@
 
 All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and signed on GitHub Actions (SLSA provenance) and published to npm and the MCP Registry by `.github/workflows/release-mcp.yml`.
 
+## 0.3.11 - 2026-11-17 (prepared, not published)
+- Seller identity: every tool result carries `seller` (ERC-8004 agent id, registry, chain, pay_to, source) and `receipts_url`; the `seller` block is the rail's own when it names one (402 first, then /.well-known/x402), else the package default (agent 95721 on Base, `source: "package"`). A desk seller named by the rail is never replaced. Prices and payTo are untouched.
+- Server instructions, README, `server.json` description and `_meta` name agent 95721, the registry address and the receipts feed.
+- `genesis402_receipt` reports the seller recorded in the receipt when it has one.
+- Version drift fixed: `server.json` was left at 0.3.9 when npm moved to 0.3.10; package.json, server.json and `VERSION` now move together (checked by `identity-test.mjs`).
+- New offline test `identity-test.mjs` (fake rail on loopback), added to `npm test`.
+
 ## 0.3.10 - 2026-10-06
 - Server instructions, the `genesis402_call` description and the listing descriptions say "360+" endpoints instead of a fixed 360 (the live catalog lists 367).
 

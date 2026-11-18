@@ -2,19 +2,19 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.FTHTrading/genesis402-mcp",
   "title": "Genesis402 by UnyKorn (x402 pay-per-call)",
-  "description": "Counterparty checks, sanctions screening, company lookup and 360 pay-per-call APIs over x402.",
+  "description": "Counterparty checks and 360+ pay-per-call APIs over x402. Seller: ERC-8004 agent 95721 on Base.",
   "repository": {
     "url": "https://github.com/FTHTrading/genesis402-agent-kit",
     "source": "github",
     "subfolder": "mcp"
   },
   "websiteUrl": "https://twin.unykorn.org/catalog",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "genesis402-mcp",
-      "version": "0.3.10",
+      "version": "0.3.11",
       "transport": {
         "type": "stdio"
       },
@@ -66,5 +66,20 @@
         "256x256"
       ]
     }
-  ]
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "seller": {
+        "agent": "genesis402",
+        "name": "Genesis402",
+        "agent_id": 95721,
+        "registry": "eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+        "registry_address": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+        "chain": "base",
+        "card": "https://twin.unykorn.org/.well-known/agent-registration.json",
+        "receipts": "https://twin.unykorn.org/receipts",
+        "storefront": "https://genesis402.com"
+      }
+    }
+  }
 }
