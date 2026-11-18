@@ -15,7 +15,7 @@ import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x4
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const VERSION = "0.3.12";
+export const VERSION = "0.3.13";
 const ORIGIN = (process.env.GENESIS402_ORIGIN || "https://twin.unykorn.org").replace(/\/$/, "");
 const BASE = "eip155:8453";
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
@@ -38,9 +38,24 @@ const resolveSeller = (challenge) => {
   return { ...found, registry: found.registry || `${BASE}:${addr}`, registry_address: addr, receipts: found.receipts || `${ORIGIN}/receipts`, chain: found.chain || "base" };
 };
 // A receipt that names its seller (seller_agent_id, seller_wallet, seller_registry) is reported with that seller, not the rail default.
-const receiptSeller = (r) => (r && Number.isFinite(Number(r.seller_agent_id)) ? { seller: { agent_id: Number(r.seller_agent_id), registry: r.seller_registry, pay_to: r.seller_wallet } } : null);
+// A treasury route is sold by a specialist and collected by the rail (collector 95721): its receipt names seller_specialist and collector_agent_id.
+const COLLECTOR_ID = 95721;
+const hasId = (v) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+const specialistSeller = (slug, agentId, collector) => ({ agent: slug, name: "Genesis402 " + slug, agent_id: hasId(agentId) ? Number(agentId) : Number(collector) || COLLECTOR_ID, specialist: slug, collector: Number(collector) || COLLECTOR_ID,
+  registry: `${BASE}:${REGISTRY_ADDRESS}`, registry_address: REGISTRY_ADDRESS, chain: "base", network: BASE, card: `${ORIGIN}/agents/${slug}/registration.json`, receipts: `${ORIGIN}/receipts?agent=${hasId(agentId) ? Number(agentId) : slug}`, storefront: "https://genesis402.com" });
+const SLUG = /^[a-z][a-z0-9-]{0,39}$/;
+const receiptSeller = (r) => {
+  if (r && typeof r.seller_specialist === "string" && SLUG.test(r.seller_specialist)) return { seller: { ...specialistSeller(r.seller_specialist, r.seller_agent_id, r.collector_agent_id), source: "rail" } };
+  return r && Number.isFinite(Number(r.seller_agent_id)) ? { seller: { agent_id: Number(r.seller_agent_id), registry: r.seller_registry, pay_to: r.seller_wallet } } : null;
+};
 // A route the manifest lists with its own seller (a desk-sold route) keeps that seller on paths that have no 402 in hand (payment_signature, FREE).
-const routeSeller = (name) => { const s = CATALOG.get(name); return s && s.seller ? { seller: s.seller } : null; };
+// A route the manifest lists with a `specialist` (and no seller of its own) is sold by that specialist; the collector is the rail (95721), and the payTo the rail quotes is not touched.
+const routeSeller = (name) => {
+  const s = CATALOG.get(name);
+  if (s && s.seller) return { seller: s.seller };
+  if (s && typeof s.specialist === "string" && SLUG.test(s.specialist)) return { seller: { ...specialistSeller(s.specialist, null, COLLECTOR_ID), ...(MANIFEST_SELLER && MANIFEST_SELLER.pay_to ? { pay_to: MANIFEST_SELLER.pay_to } : {}), source: "rail" } };
+  return null;
+};
 const receiptsUrl = (seller) => seller.receipts || `${ORIGIN}/receipts`;
 const withSeller = (obj, challenge) => { const seller = resolveSeller(challenge); return { ...obj, seller, receipts_url: receiptsUrl(seller) }; };
 
@@ -177,6 +192,8 @@ const SELLER = z.object({
   chain: z.string().describe("Chain name, base."),
   pay_to: z.string().optional().describe("The Base address this route is paid to, as quoted in the 402."),
   card: z.string().optional().describe("The seller's ERC-8004 registration file."),
+  specialist: z.string().optional().describe("Present when the route is sold by one of the rail's eight specialists (prices, chain-reader, defi, web, geo-records, research, ai-tools, utilities)."),
+  collector: z.number().optional().describe("ERC-8004 id of the collecting agent whose wallet receives the payment (95721). Present with specialist."),
   receipts: z.string().optional().describe("Public feed of signed receipts for paid calls."),
   source: z.enum(["rail", "package"]).describe("rail: named by the rail in its 402 or manifest. package: this package's default, used when the rail names none.")
 }).passthrough();
@@ -205,8 +222,10 @@ const CATALOG_OUTPUT = {
     path: z.string().describe("HTTP path on the rail."),
     price_usd: z.number().nullable().describe("Price per call in USD, null if the manifest carries none."),
     title: z.string().optional().describe("Short human title."),
-    parameters: z.any().optional().describe("Parameter schema from the manifest.")
-  })).describe("Matching endpoints, at most 400.")
+    parameters: z.any().optional().describe("Parameter schema from the manifest."),
+    specialist: z.string().optional().describe("The specialist that sells this endpoint; absent for a desk-sold or ungrouped route.")
+  })).describe("Matching endpoints, at most 400, grouped by specialist (routes without one last)."),
+  by_specialist: z.record(z.number().int()).describe("Endpoints per specialist across the whole catalog; \"none\" counts the routes with no specialist.")
 };
 const RECEIPT_OUTPUT = {
   ...SELLER_FIELDS,
@@ -317,7 +336,7 @@ const INSTRUCTIONS = [
   "Genesis402 by UnyKorn: 360+ pay-per-call data and tool endpoints for agents, settled per call in USDC on Base over x402 ($0.001 to $0.25 each). No accounts or API keys.",
   "Pick a tool: use a dedicated genesis402_* tool when one fits (counterparty checks on a company and its parents, sanctions screening of names or addresses, company lookup, multi-chain balances, DeFi yields, SEC financials, email and domain checks, web page text, JSON extraction, summaries, answers from a document, translation, scholarly paper search, signed proofs). For anything else, search genesis402_catalog (free) by keyword, then call the endpoint by name with genesis402_call.",
   "Payment: genesis402_catalog and genesis402_receipt are free. Every other tool, called without payment_signature, returns the exact price quote and charges nothing. Show the price to the user before paying. To pay, sign an x402 v2 payment for that quote with the user's own wallet and call the same tool again with payment_signature. A local server started with GENESIS402_LIVE=1 pays by itself, up to GENESIS402_MAX_USD per call.",
-  "Seller identity: calls are sold by the Genesis402 rail, ERC-8004 agent 95721 on Base (IdentityRegistry 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432, card https://twin.unykorn.org/.well-known/agent-registration.json). Every tool result carries a `seller` block (agent id, registry, pay_to) and a `receipts_url` (https://twin.unykorn.org/receipts) where the signed receipt of a paid call is listed; a route sold by a desk agent names that agent instead.",
+  "Seller identity: calls are sold by the Genesis402 rail, ERC-8004 agent 95721 on Base (IdentityRegistry 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432, card https://twin.unykorn.org/.well-known/agent-registration.json). Every tool result carries a `seller` block (agent id, registry, pay_to) and a `receipts_url` (https://twin.unykorn.org/receipts) where the signed receipt of a paid call is listed; a route sold by a desk agent names that agent instead. The 376 routes paid to the rail's treasury are each sold by one of eight specialists (prices, chain-reader, defi, web, geo-records, research, ai-tools, utilities): their seller block names the specialist, and `collector` 95721 is the agent whose wallet receives the payment. genesis402_catalog groups endpoints by specialist.",
   "Parameters are validated for free before any quote, so fix invalid_input errors before asking for payment. Risk and sanctions outputs are heuristic signals from public data, not KYC, compliance determinations, legal or investment advice; say so when you relay them."
 ].join("\n\n");
 
@@ -325,10 +344,13 @@ export async function createServer({ payer = null, hosted = false } = {}) {
   await loadCatalog();
   const server = new McpServer({ name: "genesis402", title: "Genesis402 by UnyKorn", version: VERSION }, { instructions: INSTRUCTIONS });
   const ro = { readOnlyHint: true, openWorldHint: true };
-  server.registerTool("genesis402_catalog", { title: "List endpoints and prices (free)", description: "Free, no payment, read-only. Lists Genesis402 endpoints with name, HTTP path, USD price, title and parameter schema, read from the rail's live /.well-known/x402 manifest (refreshed every 10 minutes). Use it to find an endpoint that has no dedicated genesis402_* tool, then pass its exact name and parameters to genesis402_call. Filter by keyword to keep the list short (e.g. \"defi\", \"sec\", \"wiki\"); with no filter it returns every endpoint, up to 400. Returns the rail origin, total endpoint count, number matched, the current payer mode (QUOTE_ONLY, HOSTED or LIVE with its cap) and the matching endpoints.", inputSchema: { filter: z.string().max(60).optional().describe("Optional keyword to narrow the list, matched against endpoint name, title and tags, e.g. \"defi\", \"sec\", \"price\". Omit for all endpoints.") }, outputSchema: CATALOG_OUTPUT, annotations: ro }, async ({ filter }) => {
+  server.registerTool("genesis402_catalog", { title: "List endpoints and prices (free)", description: "Free, no payment, read-only. Lists Genesis402 endpoints with name, HTTP path, USD price, title and parameter schema, read from the rail's live /.well-known/x402 manifest (refreshed every 10 minutes). Use it to find an endpoint that has no dedicated genesis402_* tool, then pass its exact name and parameters to genesis402_call. Filter by keyword to keep the list short (e.g. \"defi\", \"sec\", \"wiki\"); with no filter it returns every endpoint, up to 400. Returns the rail origin, total endpoint count, number matched, the current payer mode (QUOTE_ONLY, HOSTED or LIVE with its cap) and the matching endpoints.", inputSchema: { specialist: z.string().max(40).optional().describe("Optional specialist to list only its endpoints: prices, chain-reader, defi, web, geo-records, research, ai-tools or utilities."), filter: z.string().max(60).optional().describe("Optional keyword to narrow the list, matched against endpoint name, title and tags, e.g. \"defi\", \"sec\", \"price\". Omit for all endpoints.") }, outputSchema: CATALOG_OUTPUT, annotations: ro }, async ({ filter, specialist }) => {
     await loadCatalog(); const f = (filter || "").toLowerCase();
-    const rows = [...CATALOG.values()].filter((s) => !f || `${s.name} ${s.title || ""} ${(s.tags || []).join(" ")}`.toLowerCase().includes(f)).map((s) => ({ name: s.name, path: pathOf(s.name), price_usd: priceOf(s.name), title: s.title, parameters: s.parameters }));
-    return ok(withSeller({ origin: ORIGIN, total_endpoints: CATALOG.size, matched: rows.length, payer_mode: payer ? `LIVE (cap $${payer.maxUsd})` : hosted ? "HOSTED: quote, or pay with your own signed payment_signature" : "QUOTE_ONLY", endpoints: rows.slice(0, 400) }, null));
+    const by = {}; for (const s of CATALOG.values()) { const k = s.specialist || "none"; by[k] = (by[k] || 0) + 1; }
+    const rows = [...CATALOG.values()].filter((s) => (!f || `${s.name} ${s.title || ""} ${s.specialist || ""} ${(s.tags || []).join(" ")}`.toLowerCase().includes(f)) && (!specialist || s.specialist === specialist))
+      .sort((a, b) => { const x = a.specialist || "~", y = b.specialist || "~"; return x < y ? -1 : x > y ? 1 : String(a.name) < String(b.name) ? -1 : 1; })
+      .map((s) => ({ name: s.name, path: pathOf(s.name), price_usd: priceOf(s.name), title: s.title, parameters: s.parameters, specialist: s.specialist || undefined }));
+    return ok(withSeller({ origin: ORIGIN, total_endpoints: CATALOG.size, matched: rows.length, by_specialist: by, payer_mode: payer ? `LIVE (cap $${payer.maxUsd})` : hosted ? "HOSTED: quote, or pay with your own signed payment_signature" : "QUOTE_ONLY", endpoints: rows.slice(0, 400) }, null));
   });
   server.registerTool("genesis402_receipt", { title: "Look up a receipt (free)", description: "Free, no payment, read-only and idempotent. Fetches one receipt by id from the rail's public receipts feed (twin.unykorn.org/receipts) to confirm that a paid call was settled and delivered. Use after any paid call, or to check a genesis402_prove receipt, using the receipt id returned with that result. It does not list or search receipts; you need the exact id. Returns the receipt exactly as published: the task called, amount in USD, payment rail, settlement transaction hash, settler, payer and timestamp. An unknown id returns an error with HTTP status 404; nothing is charged either way.", inputSchema: { receipt_id: z.string().min(4).max(80).describe("The receipt id exactly as returned with a paid call result or by genesis402_prove, 4 to 80 characters.") }, outputSchema: RECEIPT_OUTPUT, annotations: ro }, async ({ receipt_id }) => {
     const r = await fetch(`${ORIGIN}/receipts/${encodeURIComponent(receipt_id)}`);

@@ -166,3 +166,22 @@ node boot-test.mjs  # boots over stdio and lists the tools a client would see
 UnyKorn LLC (Wyoming). MIT licensed. Changes: [CHANGELOG](https://github.com/FTHTrading/genesis402-agent-kit/blob/main/mcp/CHANGELOG.md).
 Discovery: [`/.well-known/x402`](https://twin.unykorn.org/.well-known/x402) ·
 Receipts: [`/receipts`](https://twin.unykorn.org/receipts)
+
+## How this rail uses ERC-8004
+
+This section is a reference example: the pattern is small enough to copy. The full write-up, with every URL, is in the rail repository (docs/ERC-8004-REFERENCE.md).
+
+**One collector, eight specialists.** The rail's collecting agent is ERC-8004 #95721 on Base (IdentityRegistry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`). Its wallet receives every payment on the 376 treasury-paid routes. Each of those routes is sold by exactly one specialist: `prices`, `chain-reader`, `defi`, `web`, `geo-records`, `research`, `ai-tools` or `utilities`. Five desk routes keep their own desk seller and wallet. Money and identity are separate: `payTo` is never decided by the identity code and is the same on every route as before.
+
+**Where you see it in this server.**
+- `seller` on every tool result: the 402's own block when the rail names one (`specialist`, `collector: 95721`, `pay_to`, `card`, `receipts`), else the manifest's `specialist` for the route, else the rail default (labelled `source: "package"`). Until a specialist is registered its `agent_id` is the collector's 95721; afterwards it is the specialist's own id and `collector` stays 95721.
+- `genesis402_catalog`: endpoints grouped by specialist, `by_specialist` counts, and a `specialist` argument to list one specialist's routes.
+- `genesis402_receipt`: a receipt of a specialist sale names `seller_specialist` and `collector_agent_id`; the result reports that specialist as the seller.
+
+**Cards.** Each agent has a registration file at `https://twin.unykorn.org/agents/<slug>/registration.json` (and by id once registered) listing only services that exist: its routes as `x402` entries, MCP, A2A, x402 discovery, the storefront and the wallet. `registrations` is empty until the agent is registered.
+
+**Validation.** The rail publishes ERC-8004 validations with hashes you can recompute: the first, for #95721, is at https://twin.unykorn.org/validations/g402-2e35434d86f9e31e.json (Validation Registry `0x8004Cc8439f36fd5F9F049D9fF86523Df6dAAB58`). Hash the served request and response documents with keccak256 and compare with the manifest.
+
+**Receipts, activity and badges.** Every paid call returns a signed receipt, public at https://twin.unykorn.org/receipts (per agent: `/receipts?agent=<id-or-slug>`). Per-agent activity, newest first, is at https://twin.unykorn.org/agents (JSON at /agents.json). Wallets we control are labelled internal and are never counted as outside demand. A capability check re-reads each card's claims every 10 minutes without spending money, and the `?variant=verified` badge is green only when every checkable claim passed recently.
+
+To copy the pattern: one wallet collects; name a seller per product family in the 402 and in the signed receipt; serve cards only for what exists; pin `accepts[]` with a golden test; count per seller from the receipts ledger so the collector's figure is the sum and nothing is counted twice.

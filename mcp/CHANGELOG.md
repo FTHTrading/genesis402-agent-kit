@@ -2,6 +2,11 @@
 
 All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and signed on GitHub Actions (SLSA provenance) and published to npm and the MCP Registry by `.github/workflows/release-mcp.yml`.
 
+## 0.3.13 - 2026-11-18
+- Specialists: the 376 treasury-paid routes are each sold by one of eight ERC-8004 specialists (prices, chain-reader, defi, web, geo-records, research, ai-tools, utilities); the collector (agent 95721) is the wallet that receives the payment. Tool results name the specialist in `seller` (`specialist`, `collector`) whether the rail's 402, its manifest or a receipt names it; `agent_id` is the collector's until the specialist is registered, then the specialist's own.
+- `genesis402_catalog`: endpoints are grouped by specialist, each row carries `specialist`, the result carries `by_specialist` counts, and a new `specialist` argument lists one specialist's routes.
+- README: new section "How this rail uses ERC-8004" (collector, specialists, validation, receipts), written as a reference example. Prices, payTo and every endpoint are unchanged.
+
 ## 0.3.12 - 2026-11-18
 
 Same content as 0.3.11 (never published: the release smoke check capped per-call prices at $0.25 while desk-agent routes are priced up to $0.75 on purpose). Smoke ceiling raised to $1.00.
