@@ -72,7 +72,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node identity-test.mjs && node --check core.mjs && node --check http.mjs && node --check index.mjs && node boot-test.mjs && node smoke.mjs"
+    "test": "node identity-test.mjs && node review-seller-mislabel-test.mjs && node --check core.mjs && node --check http.mjs && node --check index.mjs && node boot-test.mjs && node smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",
