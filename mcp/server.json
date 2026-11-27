@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.FTHTrading/genesis402-mcp",
   "title": "Genesis402 by UnyKorn (x402 pay-per-call)",
-  "description": "Counterparty checks and 360+ pay-per-call APIs over x402. Seller: ERC-8004 agent 95721 on Base.",
+  "description": "Counterparty checks and pay-per-call APIs over x402. Seller: ERC-8004 agent 95721 on Base.",
   "repository": {
     "url": "https://github.com/FTHTrading/genesis402-agent-kit",
     "source": "github",

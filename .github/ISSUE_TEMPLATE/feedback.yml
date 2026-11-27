@@ -1,0 +1,52 @@
+name: Tell us how it went
+description: You connected the MCP server or called an endpoint. Tell us what happened, whether it worked or not.
+title: "Feedback: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. This opens a public issue. Please do not paste private keys, payment signatures or anything else that is secret.
+        UnyKorn LLC operates Genesis402. We offer nothing in return for feedback, and critical feedback is as useful to us as favourable feedback.
+  - type: textarea
+    id: building
+    attributes:
+      label: What were you building?
+      description: One or two sentences are enough.
+    validations:
+      required: true
+  - type: input
+    id: tool
+    attributes:
+      label: Which tool or endpoint did you call?
+      description: For example genesis402_whois, or /check/address.
+    validations:
+      required: true
+  - type: dropdown
+    id: worked
+    attributes:
+      label: Did it work?
+      options:
+        - "Yes"
+        - "Partly"
+        - "No"
+    validations:
+      required: true
+  - type: textarea
+    id: confusing
+    attributes:
+      label: What was confusing?
+      description: Anything in the docs, the quote, the payment step, the result or the receipt.
+    validations:
+      required: false
+  - type: dropdown
+    id: quote
+    attributes:
+      label: May we quote you?
+      description: If you choose Yes, we may quote this issue with your GitHub username. If you choose No, we will not quote it anywhere.
+      options:
+        - "No"
+        - "Yes"
+      default: 0
+    validations:
+      required: true
