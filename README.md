@@ -17,7 +17,7 @@
   <b>Pay-per-call APIs for AI agents over x402 and MPP.</b><br>
   USDC on Base · each call priced and quoted before you pay · no API key · no account.<br>
   Current number of paid routes: <a href="https://twin.unykorn.org/status">live status</a>.<br>
-  Every response names its sources and carries an evidence hash. A paid call that is not delivered is re-delivered free on retry.
+  Check results name their sources and carry an evidence hash. If a paid call fails after your payment settles, you are owed the result: the <a href="https://twin.unykorn.org/.well-known/x402">published terms</a> say how it is re-delivered at no extra cost.
 </p>
 
 <p align="center">
@@ -34,7 +34,7 @@
 >
 > **Community:** [join the UnyKorn Discord](https://discord.gg/qqH42PswDd). Run a free counterparty report with `/check`, watch paid calls settle live in `#rail-feed`, and ask questions in `#help`.
 
-## Quickstart: three steps, under five minutes
+## Quickstart: three steps, about five minutes
 
 Nothing in these three steps costs money. No account, no API key, no wallet.
 
@@ -205,5 +205,6 @@ x402 v2 `exact` scheme and MPP `usdc`/`charge` (EIP-3009 authorization), on USDC
 <p align="center">
   <img src="assets/unykorn-crest.svg" width="44" alt="UnyKorn"><br>
   <b>Built by <a href="https://unykorn.ai">UnyKorn LLC</a></b> · Wyoming<br>
-  <sub>MIT license. Risk and sanctions outputs are heuristic signals from public data, not KYC or a compliance determination. Not financial, legal or tax advice.</sub>
+  <sub>MIT license. Risk and sanctions outputs are heuristic signals from public data, not KYC or a compliance determination. Not financial, legal or tax advice.</sub><br>
+  <sub>UnyKorn LLC is a technology and administration service provider. It is not a bank, broker-dealer, exchange, custodian, trustee, transfer agent, money transmitter or issuer.</sub>
 </p>
