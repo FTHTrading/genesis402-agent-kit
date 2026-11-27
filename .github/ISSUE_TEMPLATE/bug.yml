@@ -1,0 +1,56 @@
+name: Something failed
+description: A tool, endpoint, quote, payment or receipt did not behave as documented.
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This opens a public issue. Please do not paste private keys or payment signatures.
+        For a security problem, use the private route in SECURITY.md instead of this form.
+  - type: input
+    id: tool
+    attributes:
+      label: Tool or endpoint
+      description: For example genesis402_call with endpoint defi-yields, or GET /price/bitcoin.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: How did you call it?
+      options:
+        - Hosted MCP (https://twin.unykorn.org/mcp)
+        - Local MCP (npx genesis402-mcp)
+        - Plain HTTP (x402)
+        - Plain HTTP (MPP)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened?
+      description: Include the error text or HTTP status, and the time (UTC) if you have it.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: false
+  - type: input
+    id: receipt
+    attributes:
+      label: Receipt id or transaction hash, if you paid
+      description: Both are public. They let us find the call.
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Client and version
+      description: For example Claude Desktop, Cursor, genesis402-mcp 0.3.13, Node 22.
+    validations:
+      required: false

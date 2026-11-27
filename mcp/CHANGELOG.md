@@ -2,6 +2,9 @@
 
 All notable changes to `genesis402-mcp`. Dates are UTC. Releases are built and signed on GitHub Actions (SLSA provenance) and published to npm and the MCP Registry by `.github/workflows/release-mcp.yml`.
 
+## Unreleased
+- Listings: no hardcoded endpoint count or price range in the READMEs, package description, `server.json`, server instructions or the `genesis402_call` description; they point to the live count at https://twin.unykorn.org/status (`genesis402_call` still names the count it reads from the live manifest). README: three-step quickstart with `examples/quickstart.mjs`, feedback form, a neutral note on ERC-8004 feedback; the Smithery badge is removed (that listing no longer exists).
+
 ## 0.3.13 - 2026-11-18
 - Specialists: the 376 treasury-paid routes are each sold by one of eight ERC-8004 specialists (prices, chain-reader, defi, web, geo-records, research, ai-tools, utilities); the collector (agent 95721) is the wallet that receives the payment. Tool results name the specialist in `seller` (`specialist`, `collector`) whether the rail's 402, its manifest or a receipt names it; `agent_id` is the collector's until the specialist is registered, then the specialist's own.
 - `genesis402_catalog`: endpoints are grouped by specialist, each row carries `specialist`, the result carries `by_specialist` counts, and a new `specialist` argument lists one specialist's routes.

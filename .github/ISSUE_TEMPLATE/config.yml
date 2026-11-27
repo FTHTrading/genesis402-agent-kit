@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/FTHTrading/genesis402-agent-kit/security/policy
+    about: Please do not open a public issue for a vulnerability. The security policy gives the private route.
+  - name: Live status of the rail
+    url: https://twin.unykorn.org/status
+    about: Check whether the rail is healthy before reporting an outage. The page is refreshed by the rail's own monitor.
+  - name: Contact UnyKorn LLC
+    url: https://unykorn.ai
+    about: Not on GitHub, or prefer email? Write to kevan@unykorn.org.

@@ -16,10 +16,11 @@
 
 Genesis402: pay-per-call APIs for AI agents over x402.
 
-This is the MCP server for the [Genesis402](https://twin.unykorn.org) rail: **360 pay-per-call
+This is the MCP server for the [Genesis402](https://twin.unykorn.org) rail: **pay-per-call
 endpoints** covering DeFi and market data, SEC financials, wallet and token risk signals from
 public data, web and domain lookups, AI text tools, and multi-chain reads across EVM chains,
-Solana, Bitcoin, Stellar and the XRP Ledger.
+Solana, Bitcoin, Stellar and the XRP Ledger. The number of paid routes changes: see
+[https://twin.unykorn.org/status](https://twin.unykorn.org/status) for the current count.
 
 Pay only for the call you make: no account, no subscription, no API key.
 Prices from $0.001 per call, shown before you pay. This package pays in USDC on Base via x402 v2.
@@ -171,7 +172,7 @@ Receipts: [`/receipts`](https://twin.unykorn.org/receipts)
 
 This section is a reference example: the pattern is small enough to copy. The full write-up, with every URL, is in the rail repository (docs/ERC-8004-REFERENCE.md).
 
-**One collector, eight specialists.** The rail's collecting agent is ERC-8004 #95721 on Base (IdentityRegistry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`). Its wallet receives every payment on the 376 treasury-paid routes. Each of those routes is sold by exactly one specialist: `prices`, `chain-reader`, `defi`, `web`, `geo-records`, `research`, `ai-tools` or `utilities`. Five desk routes keep their own desk seller and wallet. Money and identity are separate: `payTo` is never decided by the identity code and is the same on every route as before.
+**One collector, eight specialists.** The rail's collecting agent is ERC-8004 #95721 on Base (IdentityRegistry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`). Its wallet receives every payment on the treasury-paid routes. Each of those routes is sold by exactly one specialist: `prices`, `chain-reader`, `defi`, `web`, `geo-records`, `research`, `ai-tools` or `utilities`. Five desk routes keep their own desk seller and wallet. Money and identity are separate: `payTo` is never decided by the identity code and is the same on every route as before.
 
 **Where you see it in this server.**
 - `seller` on every tool result: the 402's own block when the rail names one (`specialist`, `collector: 95721`, `pay_to`, `card`, `receipts`), else the manifest's `specialist` for the route, else the rail default (labelled `source: "package"`). Until a specialist is registered its `agent_id` is the collector's 95721; afterwards it is the specialist's own id and `collector` stays 95721.
