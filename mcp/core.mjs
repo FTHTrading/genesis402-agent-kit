@@ -367,5 +367,82 @@ export async function createServer({ payer = null, hosted = false } = {}) {
     if (CATALOG_OK && !CATALOG.has(endpoint)) continue;
     server.registerTool(tool, { title: TITLES[tool] || tool, description: `${priceTag(endpoint)}. ${blurb} ${PAY_FLOW}`, inputSchema: { ...schema, ...PAY_ARG }, outputSchema: PAID_OUTPUT, annotations: { readOnlyHint: false, openWorldHint: true } }, async ({ payment_signature, ...p }) => callPaid(endpoint, p, payer, payment_signature));
   }
+
+  server.registerPrompt("counterparty-due-diligence", {
+    title: "Counterparty registry & sanctions workflow",
+    description: "Run GLEIF/SEC entity resolution and consolidated UN/OFAC/EU/UK sanctions screening on a company before transacting.",
+    argsSchema: { query: z.string().min(3).max(200).describe("Legal entity name or 20-character LEI.") }
+  }, async ({ query }) => ({
+    messages: [{
+      role: "user",
+      content: {
+        type: "text",
+        text: `Verify counterparty "${query}" using genesis402_counterparty_report (and genesis402_company_lookup if additional parent/SEC filing detail is needed). Quote the exact price first if no payment_signature is provided, summarize any registry match and sanctions signals clearly, and state that outputs are public-data signals rather than legal advice or KYC determinations.`
+      }
+    }]
+  }));
+
+  server.registerPrompt("screen-wallet-sanctions", {
+    title: "Wallet risk & multi-chain screening",
+    description: "Screen a blockchain wallet for OFAC SDN hits, scam blocklists, and multi-chain activity.",
+    argsSchema: { address: z.string().min(4).max(120).describe("Wallet address to screen.") }
+  }, async ({ address }) => ({
+    messages: [{
+      role: "user",
+      content: {
+        type: "text",
+        text: `Screen wallet "${address}" with genesis402_screen_sanctions (any chain) and, if EVM 0x-formatted, genesis402_wallet_brief for balance/activity context. Quote prices first unless payment_signature is supplied, preserve unavailable chain reads distinctly from zero balances, and cite the returned evidence hash and receipt link.`
+      }
+    }]
+  }));
+
+  server.registerPrompt("verify-x402-receipt", {
+    title: "Verify signed x402 payment receipt",
+    description: "Look up an Ed25519-signed Genesis402 receipt by id and report its settlement metadata.",
+    argsSchema: { receipt_id: z.string().min(4).max(80).describe("Genesis402 receipt identifier.") }
+  }, async ({ receipt_id }) => ({
+    messages: [{
+      role: "user",
+      content: {
+        type: "text",
+        text: `Call genesis402_receipt (free) with receipt_id "${receipt_id}" and summarize task, USD amount, settlement lane, transaction hash, seller identity, and timestamp.`
+      }
+    }]
+  }));
+
+  server.registerResource("genesis402-catalog", "genesis402://catalog", {
+    title: "Genesis402 live x402 endpoint catalog",
+    description: "Live JSON snapshot of payable endpoints, prices, and specialist groupings from /.well-known/x402.",
+    mimeType: "application/json"
+  }, async (uri) => {
+    await loadCatalog();
+    const by_specialist = {};
+    const endpoints = [];
+    for (const s of CATALOG.values()) {
+      const k = s.specialist || "none";
+      by_specialist[k] = (by_specialist[k] || 0) + 1;
+      endpoints.push({ name: s.name, path: pathOf(s.name), price_usd: priceOf(s.name), specialist: s.specialist || undefined, title: s.title });
+    }
+    return { contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify({ origin: ORIGIN, total_endpoints: endpoints.length, by_specialist, endpoints }, null, 2) }] };
+  });
+
+  server.registerResource("genesis402-status", "genesis402://status", {
+    title: "Genesis402 rail health & guardian status",
+    description: "Current live rail status snapshot from /status (payable counts, deliveries, market standing).",
+    mimeType: "application/json"
+  }, async (uri) => {
+    const r = await fetch(`${ORIGIN}/status`);
+    const body = await r.text();
+    return { contents: [{ uri: uri.href, mimeType: "application/json", text: body }] };
+  });
+
+  server.registerResource("genesis402-seller", "genesis402://seller", {
+    title: "Genesis402 ERC-8004 seller identity",
+    description: "On-chain Base ERC-8004 seller registration and receipt verification endpoints for agent #95721.",
+    mimeType: "application/json"
+  }, async (uri) => ({
+    contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(resolveSeller(null), null, 2) }]
+  }));
+
   return server;
 }
