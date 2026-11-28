@@ -8,6 +8,8 @@
   <a href="https://glama.ai/mcp/connectors/io.github.FTHTrading/genesis402-mcp"><img src="https://img.shields.io/badge/Glama-connector-0b0d12" alt="Glama"></a>
   <a href="https://mcpservers.org/servers/fthtrading/genesis402-agent-kit"><img src="https://mcpservers.org/badge.svg" alt="Listed on mcpservers.org"></a>
   <a href="https://8004scan.io/agents/base/95721"><img src="https://img.shields.io/badge/ERC--8004-agent%2095721%20on%20Base-9a6a1f" alt="ERC-8004 agent 95721"></a>
+  <a href="https://verifiedx402.com/v/188f6f05c0d0b38789c6053f5ce809fe"><img src="https://verifiedx402.com/badge.svg?url=https%3A%2F%2Ftwin.unykorn.org%2Fchain%2Fgas-price" alt="Verified x402"></a>
+  <a href="https://wellknown.network/agents/genesis402-x402-pay-per-call"><img src="https://img.shields.io/badge/Wellknown-verified%20owner-1fbf75" alt="Wellknown Verified"></a>
   <a href="https://twin.unykorn.org/status"><img src="https://img.shields.io/badge/status-live-1fbf75" alt="Live status"></a>
   <a href="https://discord.gg/qqH42PswDd"><img src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <img src="https://img.shields.io/badge/license-MIT-6b7280" alt="MIT">
@@ -25,6 +27,7 @@
   <a href="https://twin.unykorn.org/catalog">Catalog</a> ·
   <a href="https://twin.unykorn.org/status">Live status</a> ·
   <a href="https://twin.unykorn.org/receipts">Receipts</a> ·
+  <a href="https://verifiedx402.com/?q=twin.unykorn.org&verified=1">Verified x402</a> ·
   <a href="https://unykorn.ai">UnyKorn</a>
 </p>
 
